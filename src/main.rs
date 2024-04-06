@@ -8,6 +8,8 @@ use axum::{routing::get, Router};
 use tracing_subscriber::fmt;
 use axum::extract::FromRef;
 
+use tower_http::services::{ServeFile, ServeDir};
+
 type AppEngine = Engine<Tera>;
 
 #[derive(Clone, FromRef)]
@@ -32,6 +34,8 @@ async fn main() {
         .route("/", get(pages::root))
         .route("/login", get(pages::login))
         .route("/about", get(pages::about))
+        .route_service("/favicon.ico", ServeFile::new("assets/favicon.ico"))
+        .nest_service("/assets", ServeDir::new("assets"))
         .fallback(pages::not_found)
         .with_state(AppState {
             engine: Engine::from(tera),
