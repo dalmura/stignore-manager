@@ -33,14 +33,11 @@ async fn main() {
     let app = Router::new()
         .route("/", get(pages::root))
         .route("/login", get(pages::login))
-        .route("/about", get(pages::about))
+        .route("/home", get(pages::home))
         .route_service("/favicon.ico", ServeFile::new("assets/favicon.ico"))
         .nest_service("/assets", ServeDir::new("assets"))
         .fallback(pages::not_found)
-        .with_state(AppState {
-            engine: Engine::from(tera),
-            context,
-        });
+        .with_state(AppState { engine: Engine::from(tera), context });
 
     /* bind to the port and listen */
     let addr = format!("127.0.0.1:{}", data.manager.port);

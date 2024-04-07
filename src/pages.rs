@@ -32,12 +32,12 @@ pub async fn login(State(state): State<AppState>) -> impl IntoResponse {
     RenderHtml(Key("pages/login.html".to_string()), state.engine, context.into_json())
 }
 
-pub async fn about(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn home(State(state): State<AppState>) -> impl IntoResponse {
     let mut context = state.context.clone();
-    context.insert("page_title", "About");
-    context.insert("message", "This is the about page.");
+    context.insert("page_title", "Home");
+    context.insert("message", "This is the home page.");
 
-    RenderHtml(Key("pages/about.html".to_string()), state.engine, context.into_json())
+    RenderHtml(Key("pages/home.html".to_string()), state.engine, context.into_json())
 }
 
 pub async fn not_found(State(state): State<AppState>) -> impl IntoResponse {
