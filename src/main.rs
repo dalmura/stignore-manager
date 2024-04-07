@@ -27,7 +27,7 @@ async fn main() {
     let data = config::load_config("./config.toml");
     let mut context = Context::new();
     context.insert("title", "stignore-manager");
-    context.insert("copyright", "© 2024");
+    context.insert("copyright", "© 2024 Dalmura");
 
     /* configure application routes */
     let app = Router::new()

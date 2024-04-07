@@ -2,10 +2,11 @@
 <html lang="en-AU">
   {% include "utils/head.html" %}
   <body>
-    <h1 class="title">{{page_title}}</h1>
-    <p>{{message}}</p>
+    {% include "utils/header.html" %}
+    <p>{{ message }}</p>
     <a class="button" href="/home">Home</a>
     <a class="button" href="/login">Login</a>
+    {% include "utils/footer.html" %}
     {% include "utils/scripts.html" %}
   </body>
 </html>
