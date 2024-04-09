@@ -21,23 +21,7 @@ pub async fn root(State(state): State<AppState>) -> impl IntoResponse {
     context.insert("page_title", "Index");
     context.insert("message", "Welcome to stignore-manager.");
 
-    RenderHtml(Key("index.html".to_string()), state.engine, context.into_json())
-}
-
-pub async fn login(State(state): State<AppState>) -> impl IntoResponse {
-    let mut context = state.context.clone();
-    context.insert("page_title", "Login");
-    context.insert("message", "Please log in to view content.");
-
-    RenderHtml(Key("pages/login.html".to_string()), state.engine, context.into_json())
-}
-
-pub async fn home(State(state): State<AppState>) -> impl IntoResponse {
-    let mut context = state.context.clone();
-    context.insert("page_title", "Home");
-    context.insert("message", "This is the home page.");
-
-    RenderHtml(Key("pages/home.html".to_string()), state.engine, context.into_json())
+    RenderHtml(Key("pages/index.html".to_string()), state.engine, context.into_json())
 }
 
 pub async fn not_found(State(state): State<AppState>) -> impl IntoResponse {

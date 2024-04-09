@@ -1,5 +1,6 @@
 mod config;
 mod pages;
+mod components;
 
 use axum_template::{engine::Engine};
 use tera::{Context, Tera};
@@ -29,13 +30,11 @@ async fn main() {
     context.insert("title", "stignore-manager");
     context.insert("copyright", "© 2024 Dalmura");
 
-    /* configure application routes */
     let app = Router::new()
         .route("/", get(pages::root))
-        .route("/login", get(pages::login))
-        .route("/home", get(pages::home))
         .route_service("/favicon.ico", ServeFile::new("assets/favicon.ico"))
         .nest_service("/assets", ServeDir::new("assets"))
+        .nest("/components", components::router())
         .fallback(pages::not_found)
         .with_state(AppState { engine: Engine::from(tera), context });
 
@@ -43,6 +42,7 @@ async fn main() {
     let addr = format!("127.0.0.1:{}", data.manager.port);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     tracing::debug!("listening on {}", &addr);
+
     axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
