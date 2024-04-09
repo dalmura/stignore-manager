@@ -20,6 +20,7 @@ pub struct RootContext {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/navbar.html", get(navbar))
+        .route("/itemlist.html", get(itemlist))
 }
 
 async fn navbar(State(state): State<AppState>) -> impl IntoResponse {
@@ -28,4 +29,10 @@ async fn navbar(State(state): State<AppState>) -> impl IntoResponse {
     context.insert("message", "Welcome to stignore-manager.");
 
     RenderHtml(Key("components/navbar.html".to_string()), state.engine, context.into_json())
+}
+
+async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
+    let context = state.context.clone();
+
+    RenderHtml(Key("components/itemlist.html".to_string()), state.engine, context.into_json())
 }

@@ -3,6 +3,7 @@
     {% include "utils/head.html" %}
     <body>
         {% include "utils/header.html" %}
+        <div class="container" hx-get="/components/itemlist.html" hx-trigger="load"></div>
         <p>{{ message }}</p>
         {% include "utils/footer.html" %}
         {% include "utils/scripts.html" %}
