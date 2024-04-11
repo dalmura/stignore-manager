@@ -1,6 +1,8 @@
 mod config;
 mod pages;
 mod components;
+mod agents;
+mod types;
 
 use axum_template::{engine::Engine};
 use tera::{Context, Tera};
@@ -17,6 +19,7 @@ type AppEngine = Engine<Tera>;
 pub struct AppState {
     engine: AppEngine,
     context: Context,
+    config: config::Data,
 }
 
 #[tokio::main]
@@ -36,7 +39,7 @@ async fn main() {
         .nest_service("/assets", ServeDir::new("assets"))
         .nest("/components", components::router())
         .fallback(pages::not_found)
-        .with_state(AppState { engine: Engine::from(tera), context });
+        .with_state(AppState { engine: Engine::from(tera), context, config: data.clone() });
 
     /* bind to the port and listen */
     let addr = format!("127.0.0.1:{}", data.manager.port);

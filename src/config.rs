@@ -6,11 +6,17 @@ use std::process::exit;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Data {
     pub(crate) manager: ManagerConfig,
+    pub(crate) agents: Vec<Agent>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ManagerConfig {
     pub port: u16,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Agent {
+    hostname: String,
 }
 
 pub fn load_config(filename: &str) -> Data {
