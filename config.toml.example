@@ -1,2 +1,5 @@
 [manager]
 port = 8000
+
+[[agents]]
+hostname = "my.agent.hostname"
