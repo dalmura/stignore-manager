@@ -16,7 +16,8 @@ pub struct ManagerConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Agent {
-    hostname: String,
+    pub name: String,
+    pub hostname: String,
 }
 
 pub fn load_config(filename: &str) -> Data {

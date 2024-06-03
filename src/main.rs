@@ -44,7 +44,7 @@ async fn main() {
     /* bind to the port and listen */
     let addr = format!("127.0.0.1:{}", data.manager.port);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    tracing::debug!("listening on {}", &addr);
+    tracing::info!("listening on {}", &addr);
 
     axum::serve(listener, app.into_make_service())
         .await

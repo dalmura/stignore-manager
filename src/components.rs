@@ -7,7 +7,8 @@ use axum::{
 
 use axum_template::{Key, RenderHtml};
 use serde::Serialize;
-use crate::agents::list_categories;
+use crate::agents;
+use crate::types::ItemGroup;
 
 use super::AppState;
 
@@ -35,8 +36,19 @@ async fn navbar(State(state): State<AppState>) -> impl IntoResponse {
 async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
     let mut context = state.context.clone();
 
-    let categories = list_categories(state.config.agents).categories;
-    context.insert("categories", &categories);
+    match agents::list_categories(state.config.agents).await {
+        Ok(response) => {
+            tracing::debug!("were in the happy");
+            tracing::debug!("{:?}", &response.items);
+            context.insert("items", &response.items);
+        },
+        Err(t) => {
+            tracing::debug!("were in the error");
+            tracing::debug!("{}", t);
+            let items: Vec<ItemGroup> = vec!();
+            context.insert("items", &items);
+        }
+    }
 
     RenderHtml(Key("components/itemlist.html".to_string()), state.engine, context.into_json())
 }
