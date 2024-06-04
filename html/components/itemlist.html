@@ -3,7 +3,7 @@
         <br>
     </div>
 </div>
-<div class="row">
+<div class="row" role="tabpanel">
     <div class="col">
         <div class="list-group" id="parentList" role="tablist">
             {% for i in items %}
@@ -14,13 +14,30 @@
             {% endfor %}
         </div>
     </div>
+    <script>
+        const triggerTabList = document.querySelectorAll('#parentList a');
+        triggerTabList.forEach(triggerEl => {
+            const tabTrigger = new bootstrap.Tab(triggerEl)
+
+            triggerEl.addEventListener('click', event => {
+                event.preventDefault();
+                tabTrigger.show();
+
+                const sub2List = document.querySelectorAll("#sub2List div.tab-pane");
+                sub2List.forEach(el => {
+                    el.classList.remove("active");
+                    el.classList.remove("show");
+                });
+            });
+        })
+    </script>
     <div class="col">
-        <div class="tab-content">
+        <div class="tab-content" id="sub1List" role="tablist">
             {% for i in items %}
             <div class="tab-pane" id="list-sub1-{{ i.id }}" role="tabpanel">
-                <div class="list-group">
+                <div class="list-group" id="list-sub1-tabs-{{ i.id }}" role="tablist">
                     {% for j in i.items %}
-                    <a href="#" class="list-group-item d-flex justify-content-between align-items-center list-group-item-action">
+                    <a class="d-flex justify-content-between align-items-center list-group-item list-group-item-action" data-bs-toggle="list" href="#list-sub2-{{ j.id }}" role="tab">
                         {{ j.name }}
                         <span class="badge text-bg-primary rounded-pill">{{ j.items | length }}</span>
                     </a>
@@ -31,8 +48,8 @@
         </div>
     </div>
     <script>
-        const triggerTabList = document.querySelectorAll('#parentList a')
-        triggerTabList.forEach(triggerEl => {
+        const triggerSub1TabList = document.querySelectorAll('#sub1List a');
+        triggerSub1TabList.forEach(triggerEl => {
             const tabTrigger = new bootstrap.Tab(triggerEl)
 
             triggerEl.addEventListener('click', event => {
@@ -42,27 +59,21 @@
         })
     </script>
     <div class="col">
-        <div class="list-group">
-            <a href="#" class="list-group-item d-flex justify-content-between align-items-center list-group-item-action">
-                Category 2 - Item Group 2 - Sub Item Group 1
-                <span class="badge text-bg-primary rounded-pill">8</span>
-            </a>
-            <a href="#" class="list-group-item d-flex justify-content-between align-items-center list-group-item-action">
-                Category 2 - Item Group 2 - Sub Item Group 2
-                <span class="badge text-bg-primary rounded-pill">8</span>
-            </a>
-            <a href="#" class="list-group-item d-flex justify-content-between align-items-center list-group-item-action">
-                Category 2 - Item Group 2 - Sub Item Group 3
-                <span class="badge text-bg-primary rounded-pill">8</span>
-            </a>
-            <a href="#" class="list-group-item d-flex justify-content-between align-items-center list-group-item-action">
-                Category 2 - Item Group 2 - Sub Item Group 4
-                <span class="badge text-bg-primary rounded-pill">8</span>
-            </a>
-            <a href="#" class="list-group-item d-flex justify-content-between align-items-center list-group-item-action">
-                Category 2 - Item Group 2 - Sub Item Group 5
-                <span class="badge text-bg-primary rounded-pill">6</span>
-            </a>
+        <div class="tab-content" id="sub2List" role="tablist">
+            {% for i in items %}
+            {% for j in i.items %}{% if not j.leaf %}
+            <div class="tab-pane" id="list-sub2-{{ j.id }}" role="tabpanel">
+                <div class="list-group" id="list-sub2-tabs-{{ j.id }}" role="tablist">
+                    {% for k in j.items %}
+                    <a class="d-flex justify-content-between align-items-center list-group-item list-group-item-action" data-bs-toggle="list" href="#" role="tab">
+                        {{ k.name }}
+                        <span class="badge text-bg-primary rounded-pill">{{ k.items | length }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}{% endfor %}
+            {% endfor %}
         </div>
     </div>
 </div>

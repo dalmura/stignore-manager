@@ -8,6 +8,7 @@ pub(crate) struct ItemGroup {
     pub name: String,
     pub size_kb: u64,
     pub items: Vec<ItemGroup>,
+    pub leaf: bool,
 }
 
 impl PartialEq for ItemGroup {
@@ -34,6 +35,7 @@ impl Add for ItemGroup {
             name: self.name,
             size_kb: 0,
             items: vec![],
+            leaf: self.leaf,
         }
     }
 }

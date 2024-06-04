@@ -38,12 +38,9 @@ async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
 
     match agents::list_categories(state.config.agents).await {
         Ok(response) => {
-            tracing::debug!("were in the happy");
-            tracing::debug!("{:?}", &response.items);
             context.insert("items", &response.items);
         },
         Err(t) => {
-            tracing::debug!("were in the error");
             tracing::debug!("{}", t);
             let items: Vec<ItemGroup> = vec!();
             context.insert("items", &items);
