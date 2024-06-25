@@ -49,3 +49,54 @@ pub async fn list_categories(agents: Vec<Agent>) -> Result<CategoryListingRespon
         }
     )
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentItemInfoRequest {
+    pub item_path: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentItemInfoResponse {
+    pub item: ItemGroup,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct ItemInfoResponse {
+    pub item: ItemGroup,
+    pub agent_items: Vec<(Agent, ItemGroup)>,
+}
+
+pub async fn item_info(agents: Vec<Agent>, item_path: Vec<&str>) -> Result<ItemInfoResponse, reqwest::Error> {
+    let mut agent_responses: Vec<(Agent, ItemGroup)> = vec!();
+    let mut consolidated: ItemGroup = ItemGroup {
+        id: "".to_string(),
+        name: "".to_string(),
+        size_kb: 0,
+        items: vec![],
+        leaf: false,
+    };
+
+    let owned_path: Vec<String> = item_path.iter().map(|v| v.to_string()).collect();
+
+    for agent in agents {
+        let client = reqwest::Client::new();
+        let url = agent_endpoint(&agent, "api/v1/items", false);
+        let body = AgentItemInfoRequest{item_path: owned_path.clone()};
+
+        tracing::info!("POST {:?}", &url);
+        tracing::info!("{:?}", &body);
+
+        let resp = client.post(&url).json(&body).send().await?.json::<AgentItemInfoResponse>().await?;
+
+        agent_responses.push((agent, resp.item.clone()));
+
+        consolidated = resp.item.clone() + consolidated;
+    }
+
+    Ok(
+        ItemInfoResponse {
+            agent_items: agent_responses,
+            item: consolidated,
+        }
+    )
+}

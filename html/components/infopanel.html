@@ -1,0 +1,16 @@
+<div class="row">
+    <div class="col">
+        <br>
+    </div>
+</div>
+<div class="row border border-primary rounded">
+    <div class="col">
+        <p>Item Name: {{ item.name }}</p>
+    </div>
+    {% for i in agent_items %}
+    <div class="col">
+        <p>Agent: {{ i[0].name }}</p>
+        <p>Item Size: {{ i[1].size_kb }} kb</p>
+    </div>
+    {% endfor %}
+</div>
