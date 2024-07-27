@@ -35,10 +35,20 @@
                 event.preventDefault();
                 tabTrigger.show();
 
+                const sub1ListRows = document.querySelectorAll("#sub1List div.tab-pane a");
+                sub1ListRows.forEach(el => {
+                    el.classList.remove("active");
+                });
+
                 const sub2List = document.querySelectorAll("#sub2List div.tab-pane");
                 sub2List.forEach(el => {
                     el.classList.remove("active");
                     el.classList.remove("show");
+                });
+
+                const sub2ListRows = document.querySelectorAll("#sub2List div.tab-pane a");
+                sub2ListRows.forEach(el => {
+                    el.classList.remove("active");
                 });
             });
         })
@@ -65,8 +75,13 @@
             const tabTrigger = new bootstrap.Tab(triggerEl)
 
             triggerEl.addEventListener('click', event => {
-                event.preventDefault()
-                tabTrigger.show()
+                event.preventDefault();
+                tabTrigger.show();
+
+                const sub2ListRows = document.querySelectorAll("#sub2List div.tab-pane a");
+                sub2ListRows.forEach(el => {
+                    el.classList.remove("active");
+                });
             })
         })
     </script>

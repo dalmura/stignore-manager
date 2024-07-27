@@ -5,12 +5,12 @@ edition = "2021"
 authors = ["Michael Robbins"]
 
 [dependencies]
-axum = { version="0.7", features=["macros"] }
-axum-template = { version = "2.3", features=["tera"] }
+axum = { version="0.7.5", features=["macros"] }
+axum-template = { version = "2.3.0", features=["tera"] }
 serde = { version = "1.0.203", features = ["derive"] }
-tokio = { version = "1.38", features = ["full"] }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tracing = "0.1"
+tokio = { version = "1.38.0", features = ["full"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing = "0.1.40"
 toml = "0.8.14"
 tera = "1.20.0"
 tower-http = { version="0.5.2" , features=["fs"]}
