@@ -35,9 +35,9 @@ pub async fn list_categories(agents: Vec<Agent>) -> Result<CategoryListingRespon
         agent_responses.push(resp.clone());
 
         for item in resp.items {
-            let _ = match consolidated.get(&item.id) {
-                Some(i) => consolidated.insert(item.id.clone(), item.clone() + i.to_owned()),
-                None => consolidated.insert(item.id.clone(), item.clone()),
+            match consolidated.get(&item.id) {
+                Some(_) => {},
+                None => {consolidated.insert(item.id.clone(), item.clone());},
             };
         }
     }
@@ -89,7 +89,6 @@ pub async fn item_info(agents: Vec<Agent>, item_path: Vec<&str>) -> Result<ItemI
         let resp = client.post(&url).json(&body).send().await?.json::<AgentItemInfoResponse>().await?;
 
         agent_responses.push((agent, resp.item.clone()));
-
         consolidated = resp.item.clone() + consolidated;
     }
 

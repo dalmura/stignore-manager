@@ -9,8 +9,8 @@
     </div>
     {% for i in agent_items %}
     <div class="col">
-        <p>Agent: {{ i[0].name }}</p>
-        <p>Item Size: {{ i[1].size_kb }} kb</p>
+        <p>{{ i[0].name }}</p>
+        <p>Size: {{ i[1].size_kb }} kb</p>
     </div>
     {% endfor %}
 </div>
