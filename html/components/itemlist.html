@@ -7,9 +7,23 @@
     <div class="col">
         <div class="list-group" id="parentList" role="tablist">
             {% for i in items %}
-            <a class="d-flex justify-content-between align-items-center list-group-item list-group-item-action" data-bs-toggle="list" href="#list-sub1-{{ i.id }}" role="tab">
+            <a
+                id="parent-item-{{ i.id }}"
+                class="d-flex justify-content-between align-items-center list-group-item list-group-item-action"
+                data-bs-toggle="list"
+                href="#list-sub1-{{ i.id }}"
+                role="tab"
+                hx-post="/components/infopanel.html"
+                hx-ext="json-enc"
+                hx-include="#parent-item-{{ i.id }} input"
+                hx-target="#info-panel"
+            >
                 {{ i.name }}
                 <span class="badge text-bg-primary rounded-pill">{{ i.items | length }}</span>
+                <input type="hidden" name="item_path" value="">
+                <input type="hidden" name="item_path" value="{{ i.id }}">
+                <input type="hidden" name="hierarchy_names" value="">
+                <input type="hidden" name="hierarchy_names" value="{{ i.name }}">
             </a>
             {% endfor %}
         </div>
@@ -23,10 +37,20 @@
                 event.preventDefault();
                 tabTrigger.show();
 
+                const sub1ListRows = document.querySelectorAll("#sub1List div.tab-pane a");
+                sub1ListRows.forEach(el => {
+                    el.classList.remove("active");
+                });
+
                 const sub2List = document.querySelectorAll("#sub2List div.tab-pane");
                 sub2List.forEach(el => {
                     el.classList.remove("active");
                     el.classList.remove("show");
+                });
+
+                const sub2ListRows = document.querySelectorAll("#sub2List div.tab-pane a");
+                sub2ListRows.forEach(el => {
+                    el.classList.remove("active");
                 });
             });
         })
@@ -37,9 +61,25 @@
             <div class="tab-pane" id="list-sub1-{{ i.id }}" role="tabpanel">
                 <div class="list-group" id="list-sub1-tabs-{{ i.id }}" role="tablist">
                     {% for j in i.items %}
-                    <a class="d-flex justify-content-between align-items-center list-group-item list-group-item-action" data-bs-toggle="list" href="#list-sub2-{{ j.id }}" role="tab">
+                    <a
+                            id="item-sub1-{{ j.id }}"
+                            class="d-flex justify-content-between align-items-center list-group-item list-group-item-action"
+                            data-bs-toggle="list"
+                            href="#list-sub2-{{ j.id }}"
+                            role="tab"
+                            hx-post="/components/infopanel.html"
+                            hx-ext="json-enc"
+                            hx-include="#item-sub1-{{ j.id }} input"
+                            hx-target="#info-panel"
+                    >
                         {{ j.name }}
                         <span class="badge text-bg-primary rounded-pill">{{ j.items | length }}</span>
+                        <input type="hidden" name="item_path" value="">
+                        <input type="hidden" name="item_path" value="{{ i.id }}">
+                        <input type="hidden" name="item_path" value="{{ j.id }}">
+                        <input type="hidden" name="hierarchy_names" value="">
+                        <input type="hidden" name="hierarchy_names" value="{{ i.name }}">
+                        <input type="hidden" name="hierarchy_names" value="{{ j.name }}">
                     </a>
                     {% endfor %}
                 </div>
@@ -53,8 +93,13 @@
             const tabTrigger = new bootstrap.Tab(triggerEl)
 
             triggerEl.addEventListener('click', event => {
-                event.preventDefault()
-                tabTrigger.show()
+                event.preventDefault();
+                tabTrigger.show();
+
+                const sub2ListRows = document.querySelectorAll("#sub2List div.tab-pane a");
+                sub2ListRows.forEach(el => {
+                    el.classList.remove("active");
+                });
             })
         })
     </script>
@@ -65,9 +110,27 @@
             <div class="tab-pane" id="list-sub2-{{ j.id }}" role="tabpanel">
                 <div class="list-group" id="list-sub2-tabs-{{ j.id }}" role="tablist">
                     {% for k in j.items %}
-                    <a class="d-flex justify-content-between align-items-center list-group-item list-group-item-action" data-bs-toggle="list" href="#" role="tab">
+                    <a
+                            id="item-sub2-{{ k.id }}"
+                            class="d-flex justify-content-between align-items-center list-group-item list-group-item-action"
+                            data-bs-toggle="list"
+                            href="#"
+                            role="tab"
+                            hx-post="/components/infopanel.html"
+                            hx-ext="json-enc"
+                            hx-include="#item-sub2-{{ k.id }} input"
+                            hx-target="#info-panel"
+                    >
                         {{ k.name }}
                         <span class="badge text-bg-primary rounded-pill">{{ k.items | length }}</span>
+                        <input type="hidden" name="item_path" value="">
+                        <input type="hidden" name="item_path" value="{{ i.id }}">
+                        <input type="hidden" name="item_path" value="{{ j.id }}">
+                        <input type="hidden" name="item_path" value="{{ k.id }}">
+                        <input type="hidden" name="hierarchy_names" value="">
+                        <input type="hidden" name="hierarchy_names" value="{{ i.name }}">
+                        <input type="hidden" name="hierarchy_names" value="{{ j.name }}">
+                        <input type="hidden" name="hierarchy_names" value="{{ k.name }}">
                     </a>
                     {% endfor %}
                 </div>

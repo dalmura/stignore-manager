@@ -49,8 +49,12 @@ mod tests {
     fn serde_valid_config() {
         let data: Result<Data, toml::de::Error> = toml::from_str(
             r#"
-               [manager]
-               port = 3000
+                [manager]
+                port = 8000
+                
+                [[agents]]
+                name = "Agent 1"
+                hostname = "localhost:3000"
             "#,
         );
         assert!(data.is_ok());
