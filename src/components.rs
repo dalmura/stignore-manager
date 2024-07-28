@@ -1,18 +1,11 @@
 use axum::{Router, routing::{get, post}, response::IntoResponse, extract::State, Json};
 
 use axum_template::{Key, RenderHtml};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use crate::agents;
 use crate::types::ItemGroup;
 
 use super::AppState;
-
-
-#[derive(Debug, Serialize)]
-pub struct RootContext {
-    page_title: String,
-    message: String,
-}
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -48,13 +41,12 @@ async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
 
 #[derive(Deserialize)]
 struct InfoPanelRequest {
+    hierarchy_names: Vec<String>,
     item_path: Vec<String>,
 }
 
 async fn infopanel(State(state): State<AppState>, Json(payload): Json<InfoPanelRequest>) -> impl IntoResponse {
     let mut context = state.context.clone();
-
-    tracing::info!("in infopanel");
 
     let item_path: Vec<&str> = payload.item_path.iter().filter(|i| !i.is_empty()).map(AsRef::as_ref).collect();
 
@@ -64,6 +56,7 @@ async fn infopanel(State(state): State<AppState>, Json(payload): Json<InfoPanelR
         Ok(response) => {
             context.insert("item", &response.item);
             context.insert("agent_items", &response.agent_items);
+            context.insert("parent_names", &payload.hierarchy_names[1..]);
         },
         Err(t) => {
             tracing::error!("Error in agents::item_info");

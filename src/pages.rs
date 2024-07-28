@@ -5,16 +5,8 @@ use axum::{
 };
 
 use axum_template::{Key, RenderHtml};
-use serde::Serialize;
 
 use super::AppState;
-
-
-#[derive(Debug, Serialize)]
-pub struct RootContext {
-    page_title: String,
-    message: String,
-}
 
 pub async fn root(State(state): State<AppState>) -> impl IntoResponse {
     let mut context = state.context.clone();

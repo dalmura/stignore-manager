@@ -15,13 +15,15 @@
                 role="tab"
                 hx-post="/components/infopanel.html"
                 hx-ext="json-enc"
-                hx-include="#parent-item-{{ i.id }} input[name='item_path']"
+                hx-include="#parent-item-{{ i.id }} input"
                 hx-target="#info-panel"
             >
                 {{ i.name }}
                 <span class="badge text-bg-primary rounded-pill">{{ i.items | length }}</span>
                 <input type="hidden" name="item_path" value="">
                 <input type="hidden" name="item_path" value="{{ i.id }}">
+                <input type="hidden" name="hierarchy_names" value="">
+                <input type="hidden" name="hierarchy_names" value="{{ i.name }}">
             </a>
             {% endfor %}
         </div>
@@ -67,7 +69,7 @@
                             role="tab"
                             hx-post="/components/infopanel.html"
                             hx-ext="json-enc"
-                            hx-include="#item-sub1-{{ j.id }} input[name='item_path']"
+                            hx-include="#item-sub1-{{ j.id }} input"
                             hx-target="#info-panel"
                     >
                         {{ j.name }}
@@ -75,6 +77,9 @@
                         <input type="hidden" name="item_path" value="">
                         <input type="hidden" name="item_path" value="{{ i.id }}">
                         <input type="hidden" name="item_path" value="{{ j.id }}">
+                        <input type="hidden" name="hierarchy_names" value="">
+                        <input type="hidden" name="hierarchy_names" value="{{ i.name }}">
+                        <input type="hidden" name="hierarchy_names" value="{{ j.name }}">
                     </a>
                     {% endfor %}
                 </div>
@@ -113,7 +118,7 @@
                             role="tab"
                             hx-post="/components/infopanel.html"
                             hx-ext="json-enc"
-                            hx-include="#item-sub2-{{ k.id }} input[name='item_path']"
+                            hx-include="#item-sub2-{{ k.id }} input"
                             hx-target="#info-panel"
                     >
                         {{ k.name }}
@@ -122,6 +127,10 @@
                         <input type="hidden" name="item_path" value="{{ i.id }}">
                         <input type="hidden" name="item_path" value="{{ j.id }}">
                         <input type="hidden" name="item_path" value="{{ k.id }}">
+                        <input type="hidden" name="hierarchy_names" value="">
+                        <input type="hidden" name="hierarchy_names" value="{{ i.name }}">
+                        <input type="hidden" name="hierarchy_names" value="{{ j.name }}">
+                        <input type="hidden" name="hierarchy_names" value="{{ k.name }}">
                     </a>
                     {% endfor %}
                 </div>

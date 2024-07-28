@@ -5,7 +5,7 @@
 </div>
 <div class="row border border-primary rounded">
     <div class="col">
-        <p>Item Name: {{ item.name }}</p>
+        <p>Item: {{ parent_names | join(sep=' / ') }}</p>
     </div>
     {% for i in agent_items %}
     <div class="col">
