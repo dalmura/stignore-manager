@@ -1,17 +1,17 @@
+mod agents;
+mod components;
 mod config;
 mod pages;
-mod components;
-mod agents;
 mod types;
 
-use axum_template::{engine::Engine};
+use axum_template::engine::Engine;
 use tera::{Context, Tera};
 
+use axum::extract::FromRef;
 use axum::{routing::get, Router};
 use tracing_subscriber::fmt;
-use axum::extract::FromRef;
 
-use tower_http::services::{ServeFile, ServeDir};
+use tower_http::services::{ServeDir, ServeFile};
 
 type AppEngine = Engine<Tera>;
 
@@ -39,7 +39,11 @@ async fn main() {
         .nest_service("/assets", ServeDir::new("assets"))
         .nest("/components", components::router())
         .fallback(pages::not_found)
-        .with_state(AppState { engine: Engine::from(tera), context, config: data.clone() });
+        .with_state(AppState {
+            engine: Engine::from(tera),
+            context,
+            config: data.clone(),
+        });
 
     /* bind to the port and listen */
     let addr = format!("127.0.0.1:{}", data.manager.port);

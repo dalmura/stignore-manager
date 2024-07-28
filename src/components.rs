@@ -1,9 +1,14 @@
-use axum::{Router, routing::{get, post}, response::IntoResponse, extract::State, Json};
+use axum::{
+    extract::State,
+    response::IntoResponse,
+    routing::{get, post},
+    Json, Router,
+};
 
-use axum_template::{Key, RenderHtml};
-use serde::Deserialize;
 use crate::agents;
 use crate::types::ItemGroup;
+use axum_template::{Key, RenderHtml};
+use serde::Deserialize;
 
 use super::AppState;
 
@@ -19,7 +24,11 @@ async fn navbar(State(state): State<AppState>) -> impl IntoResponse {
     context.insert("page_title", "Index");
     context.insert("message", "Welcome to stignore-manager.");
 
-    RenderHtml(Key("components/navbar.html".to_string()), state.engine, context.into_json())
+    RenderHtml(
+        Key("components/navbar.html".to_string()),
+        state.engine,
+        context.into_json(),
+    )
 }
 
 async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
@@ -28,15 +37,19 @@ async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
     match agents::list_categories(state.config.agents).await {
         Ok(response) => {
             context.insert("items", &response.items);
-        },
+        }
         Err(t) => {
             tracing::debug!("{}", t);
-            let items: Vec<ItemGroup> = vec!();
+            let items: Vec<ItemGroup> = vec![];
             context.insert("items", &items);
         }
     }
 
-    RenderHtml(Key("components/itemlist.html".to_string()), state.engine, context.into_json())
+    RenderHtml(
+        Key("components/itemlist.html".to_string()),
+        state.engine,
+        context.into_json(),
+    )
 }
 
 #[derive(Deserialize)]
@@ -45,10 +58,18 @@ struct InfoPanelRequest {
     item_path: Vec<String>,
 }
 
-async fn infopanel(State(state): State<AppState>, Json(payload): Json<InfoPanelRequest>) -> impl IntoResponse {
+async fn infopanel(
+    State(state): State<AppState>,
+    Json(payload): Json<InfoPanelRequest>,
+) -> impl IntoResponse {
     let mut context = state.context.clone();
 
-    let item_path: Vec<&str> = payload.item_path.iter().filter(|i| !i.is_empty()).map(AsRef::as_ref).collect();
+    let item_path: Vec<&str> = payload
+        .item_path
+        .iter()
+        .filter(|i| !i.is_empty())
+        .map(AsRef::as_ref)
+        .collect();
 
     tracing::info!("Using item path: {:?}", item_path);
 
@@ -57,7 +78,7 @@ async fn infopanel(State(state): State<AppState>, Json(payload): Json<InfoPanelR
             context.insert("item", &response.item);
             context.insert("agent_items", &response.agent_items);
             context.insert("parent_names", &payload.hierarchy_names[1..]);
-        },
+        }
         Err(t) => {
             tracing::error!("Error in agents::item_info");
             tracing::debug!("{}", t);
@@ -66,5 +87,9 @@ async fn infopanel(State(state): State<AppState>, Json(payload): Json<InfoPanelR
 
     tracing::info!("Context: {:?}", context.clone().into_json());
 
-    RenderHtml(Key("components/infopanel.html".to_string()), state.engine, context.into_json())
+    RenderHtml(
+        Key("components/infopanel.html".to_string()),
+        state.engine,
+        context.into_json(),
+    )
 }
