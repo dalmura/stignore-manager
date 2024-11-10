@@ -61,7 +61,7 @@ pub(crate) struct AgentItemInfoRequest {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct AgentItemInfoResponse {
-    pub item: ItemGroup,
+    pub item: Result<ItemGroup, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -95,16 +95,23 @@ pub async fn item_info(
         tracing::info!("POST {:?}", &url);
         tracing::info!("{:?}", &body);
 
-        let resp = client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await?
-            .json::<AgentItemInfoResponse>()
-            .await?;
+        let resp = client.post(&url).json(&body).send().await?;
 
-        agent_responses.push((agent, resp.item.clone()));
-        consolidated = resp.item.clone() + consolidated;
+        let parsed = match resp.status() {
+            reqwest::StatusCode::OK => resp.json::<AgentItemInfoResponse>().await?,
+            _ => AgentItemInfoResponse {
+                item: ItemGroup {
+                    id: "".to_string(),
+                    name: "".to_string(),
+                    size_kb: 0,
+                    items: vec![],
+                    leaf: false,
+                },
+            },
+        };
+
+        agent_responses.push((agent, parsed.item.clone()));
+        consolidated = parsed.item.clone() + consolidated;
     }
 
     Ok(ItemInfoResponse {
