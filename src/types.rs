@@ -55,7 +55,8 @@ impl Add for ItemGroup {
             }
         }
 
-        let merged_items_vec: Vec<ItemGroup> = merged_items.into_values().collect();
+        let mut merged_items_vec: Vec<ItemGroup> = merged_items.into_values().collect();
+        merged_items_vec.sort_by(|a, b| a.name.cmp(&b.name));
 
         // Calculate total size from merged child items
         let total_size_kb = merged_items_vec

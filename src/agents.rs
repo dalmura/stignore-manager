@@ -52,9 +52,12 @@ pub async fn list_categories(
         }
     }
 
+    let mut sorted_items: Vec<ItemGroup> = consolidated.values().cloned().collect();
+    sorted_items.sort_by(|a, b| a.name.cmp(&b.name));
+
     Ok(CategoryListingResponse {
         agent_items: agent_responses,
-        items: consolidated.values().cloned().collect(),
+        items: sorted_items,
     })
 }
 

@@ -36,7 +36,9 @@ async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
 
     match agents::list_categories(state.config.agents).await {
         Ok(response) => {
-            context.insert("items", &response.items);
+            let mut sorted_items = response.items;
+            sorted_items.sort_by(|a, b| a.name.cmp(&b.name));
+            context.insert("items", &sorted_items);
         }
         Err(t) => {
             tracing::debug!("{}", t);
