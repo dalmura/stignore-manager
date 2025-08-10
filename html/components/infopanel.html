@@ -18,11 +18,10 @@ console.log('DEBUG: agent_items length:', {{ agent_items | length }});
     {% for i in agent_items %}
     <div class="col">
         <script>console.log('DEBUG: Processing agent_item:', {{ i | json_encode() | safe }});</script>
-        <p>{{ i[0].name }}</p>
-        {% if i[1].size_kb == 0 %}
-        <p>Missing</p>
-        {% else %}
-        <p>Size: {{ (i[1].size_kb / 1024) | round(precision=2) }} mb</p>
+        <p>{{ i.agent.name }}</p>
+        <p>Status: {{ i.sync_status }}</p>
+        {% if i.sync_status != "Missing" %}
+        <p>Size: {{ (i.item.size_kb / 1024) | round(precision=2) }} mb</p>
         {% endif %}
     </div>
     {% endfor %}

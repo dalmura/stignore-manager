@@ -8,7 +8,8 @@ use axum::{
 use crate::agents;
 use crate::types::ItemGroup;
 use axum_template::{Key, RenderHtml};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 use super::AppState;
 
@@ -60,6 +61,63 @@ struct InfoPanelRequest {
     item_path: Vec<String>,
 }
 
+#[derive(Serialize, Debug)]
+struct AgentItemWithStatus {
+    agent: crate::config::Agent,
+    item: ItemGroup,
+    sync_status: String,
+}
+
+fn collect_all_item_ids(item_group: &ItemGroup) -> HashSet<String> {
+    let mut ids = HashSet::new();
+
+    // Add this item's ID if it has one and is not empty
+    if !item_group.id.is_empty() {
+        ids.insert(item_group.id.clone());
+    }
+
+    // Recursively collect IDs from all sub-items
+    for item in &item_group.items {
+        ids.extend(collect_all_item_ids(item));
+    }
+
+    ids
+}
+
+fn calculate_sync_status(
+    agent_items: &[(crate::config::Agent, ItemGroup)],
+) -> Vec<AgentItemWithStatus> {
+    // Collect all unique item IDs from all agents (including nested items)
+    let mut all_item_ids: HashSet<String> = HashSet::new();
+    for (_, item_group) in agent_items {
+        all_item_ids.extend(collect_all_item_ids(item_group));
+    }
+
+    let mut result = Vec::new();
+
+    for (agent, item_group) in agent_items {
+        let agent_item_ids = collect_all_item_ids(item_group);
+
+        let sync_status = if item_group.size_kb == 0 {
+            "Missing".to_string()
+        } else if agent_item_ids == all_item_ids {
+            "In Sync".to_string()
+        } else if agent_item_ids.is_empty() {
+            "Empty".to_string()
+        } else {
+            format!("Partial ({}/{})", agent_item_ids.len(), all_item_ids.len())
+        };
+
+        result.push(AgentItemWithStatus {
+            agent: agent.clone(),
+            item: item_group.clone(),
+            sync_status,
+        });
+    }
+
+    result
+}
+
 async fn infopanel(
     State(state): State<AppState>,
     Json(payload): Json<InfoPanelRequest>,
@@ -98,8 +156,10 @@ async fn infopanel(
             );
             tracing::info!("DEBUG: Response agent_items: {:?}", response.agent_items);
 
+            let agent_items_with_status = calculate_sync_status(&response.agent_items);
+
             context.insert("item", &response.item);
-            context.insert("agent_items", &response.agent_items);
+            context.insert("agent_items", &agent_items_with_status);
             context.insert("parent_names", &payload.hierarchy_names[1..]);
         }
         Err(t) => {
