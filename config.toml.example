@@ -2,4 +2,5 @@
 port = 8000
 
 [[agents]]
+name = "my.agent"
 hostname = "my.agent.hostname"
