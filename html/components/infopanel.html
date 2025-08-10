@@ -19,7 +19,11 @@ console.log('DEBUG: agent_items length:', {{ agent_items | length }});
     <div class="col">
         <script>console.log('DEBUG: Processing agent_item:', {{ i | json_encode() | safe }});</script>
         <p>{{ i.agent.name }}</p>
+        {% if i.sync_status == "In Sync" %}
         <p>Status: {{ i.sync_status }}</p>
+        {% else %}
+        <p style="color: red;">Status: {{ i.sync_status }}</p>
+        {% endif %}
         {% if i.sync_status != "Missing" %}
         <p>Size: {{ (i.item.size_kb / 1024) | round(precision=2) }} mb</p>
         {% endif %}
