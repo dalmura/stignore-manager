@@ -52,7 +52,7 @@ async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
     )
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct InfoPanelRequest {
     hierarchy_names: Vec<String>,
     item_path: Vec<String>,
@@ -62,6 +62,11 @@ async fn infopanel(
     State(state): State<AppState>,
     Json(payload): Json<InfoPanelRequest>,
 ) -> impl IntoResponse {
+    tracing::info!(
+        "DEBUG: InfoPanel request received with payload: {:?}",
+        payload
+    );
+
     let mut context = state.context.clone();
 
     let item_path: Vec<&str> = payload
@@ -71,25 +76,51 @@ async fn infopanel(
         .map(AsRef::as_ref)
         .collect();
 
-    tracing::info!("Using item path: {:?}", item_path);
+    tracing::info!("DEBUG: Filtered item path: {:?}", item_path);
+    tracing::info!(
+        "DEBUG: Original hierarchy_names: {:?}",
+        payload.hierarchy_names
+    );
+    tracing::info!(
+        "DEBUG: Parent names (excluding first): {:?}",
+        &payload.hierarchy_names[1..]
+    );
 
     match agents::item_info(state.config.agents, item_path).await {
         Ok(response) => {
+            tracing::info!("DEBUG: agents::item_info succeeded");
+            tracing::info!("DEBUG: Response item: {:?}", response.item);
+            tracing::info!(
+                "DEBUG: Response agent_items count: {}",
+                response.agent_items.len()
+            );
+            tracing::info!("DEBUG: Response agent_items: {:?}", response.agent_items);
+
             context.insert("item", &response.item);
             context.insert("agent_items", &response.agent_items);
             context.insert("parent_names", &payload.hierarchy_names[1..]);
         }
         Err(t) => {
-            tracing::error!("Error in agents::item_info");
-            tracing::debug!("{}", t);
+            tracing::error!("DEBUG: Error in agents::item_info: {}", t);
+            tracing::debug!("DEBUG: Full error details: {}", t);
+
+            // Insert empty defaults to prevent template errors
+            context.insert("agent_items", &Vec::<()>::new());
+            context.insert("parent_names", &Vec::<String>::new());
         }
     }
 
-    tracing::info!("Context: {:?}", context.clone().into_json());
+    tracing::info!(
+        "DEBUG: Final template context: {:?}",
+        context.clone().into_json()
+    );
 
-    RenderHtml(
+    let result = RenderHtml(
         Key("components/infopanel.html".to_string()),
         state.engine,
         context.into_json(),
-    )
+    );
+
+    tracing::info!("DEBUG: Template rendering initiated");
+    result
 }

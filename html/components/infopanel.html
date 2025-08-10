@@ -1,3 +1,10 @@
+<script>
+console.log('DEBUG: InfoPanel rendering started');
+console.log('DEBUG: parent_names:', {{ parent_names | json_encode() | safe }});
+console.log('DEBUG: agent_items:', {{ agent_items | json_encode() | safe }});
+console.log('DEBUG: agent_items length:', {{ agent_items | length }});
+</script>
+
 <div class="row">
     <div class="col">
         <br>
@@ -6,11 +13,20 @@
 <div class="row border border-primary rounded">
     <div class="col">
         <p>Item: {{ parent_names | join(sep=' / ') }}</p>
+        <script>console.log('DEBUG: Rendered parent_names as:', '{{ parent_names | join(sep=' / ') }}');</script>
     </div>
     {% for i in agent_items %}
     <div class="col">
+        <script>console.log('DEBUG: Processing agent_item:', {{ i | json_encode() | safe }});</script>
         <p>{{ i[0].name }}</p>
-        <p>Size: {{ i[1].size_kb }} kb</p>
+        <p>Size: {{ (i[1].size_kb / 1024) | round(precision=2) }} mb</p>
     </div>
     {% endfor %}
+    {% if agent_items | length == 0 %}
+    <script>console.log('DEBUG: No agent_items found - this might be why the panel appears empty');</script>
+    {% endif %}
 </div>
+
+<script>
+console.log('DEBUG: InfoPanel rendering completed');
+</script>

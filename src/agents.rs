@@ -40,7 +40,11 @@ pub async fn list_categories(
 
         for item in resp.items {
             match consolidated.get(&item.id) {
-                Some(_) => {}
+                Some(existing) => {
+                    // Merge with existing item using addition
+                    let merged = existing.clone() + item;
+                    consolidated.insert(merged.id.clone(), merged);
+                }
                 None => {
                     consolidated.insert(item.id.clone(), item.clone());
                 }
@@ -93,15 +97,57 @@ pub async fn item_info(
         };
 
         tracing::info!("POST {:?}", &url);
-        tracing::info!("{:?}", &body);
+        tracing::info!("Request body: {:?}", &body);
 
-        let resp = client
+        let response = client.post(&url).json(&body).send().await?;
+
+        let status = response.status();
+        tracing::info!("DEBUG: Response status: {}", status);
+        tracing::info!("DEBUG: Response headers: {:?}", response.headers());
+
+        // Handle 404 responses by creating an empty response
+        if status == reqwest::StatusCode::NOT_FOUND {
+            tracing::info!("DEBUG: Agent returned 404, creating empty AgentItemInfoResponse");
+            let empty_item = ItemGroup {
+                id: "".to_string(),
+                name: "".to_string(),
+                size_kb: 0,
+                items: vec![],
+                leaf: false,
+            };
+            let resp = AgentItemInfoResponse { item: empty_item };
+            agent_responses.push((agent, resp.item.clone()));
+            consolidated = resp.item.clone() + consolidated;
+            continue;
+        }
+
+        let response_text = response.text().await?;
+        tracing::info!("DEBUG: Raw response body: {}", response_text);
+
+        // Make another request to parse JSON (since we consumed the first response)
+        let resp_result = client
             .post(&url)
             .json(&body)
             .send()
             .await?
             .json::<AgentItemInfoResponse>()
-            .await?;
+            .await;
+
+        let resp = match resp_result {
+            Ok(parsed) => {
+                tracing::info!("DEBUG: Successfully parsed JSON response");
+                parsed
+            }
+            Err(e) => {
+                tracing::error!("DEBUG: Failed to parse JSON response: {}", e);
+                tracing::error!(
+                    "DEBUG: Response text that failed to parse: '{}'",
+                    response_text
+                );
+                tracing::error!("DEBUG: Expected format: AgentItemInfoResponse with 'item' field containing ItemGroup");
+                return Err(e);
+            }
+        };
 
         agent_responses.push((agent, resp.item.clone()));
         consolidated = resp.item.clone() + consolidated;
