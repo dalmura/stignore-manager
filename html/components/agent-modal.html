@@ -1,0 +1,58 @@
+
+{% if error %}
+<div class="alert alert-danger" role="alert">
+    <strong>Error:</strong> {{ error }}
+</div>
+{% elif agent and agent_item %}
+<div>
+    <div class="mb-3">
+        <h6>{{ agent.name }}</h6>
+    </div>
+
+    <div class="mb-3">
+        <strong>Sync Status:</strong>
+        {% if agent_item.sync_status == "In Sync" %}
+            <span class="badge bg-success">{{ agent_item.sync_status }}</span>
+        {% else %}
+            <span class="badge bg-warning text-dark">{{ agent_item.sync_status }}</span>
+        {% endif %}
+    </div>
+
+    <div class="mb-3">
+        <strong>Size:</strong>
+        <span class="badge bg-light text-dark">{{ (agent_item.item.size_kb / 1024) | round(precision=2) }} MB</span>
+    </div>
+
+    {% if merged_items %}
+    <div class="mb-3">
+        <strong>Items ({{ merged_items | length }}):</strong>
+        <div class="mt-2" style="max-height: 300px; overflow-y: auto;">
+            <div class="list-group list-group-flush">
+                {% for item in merged_items %}
+                <div class="list-group-item d-flex justify-content-between align-items-start{% if (agent_item.sync_status == 'Partial' and not item.present) or item.is_partial %} border-danger{% endif %}">
+                    <div class="flex-grow-1">
+                        <div class="fw-bold{% if (agent_item.sync_status == 'Partial' and not item.present) or item.is_partial %} text-danger{% endif %}">{{ item.name }}</div>
+                        <small class="{% if not item.present or item.is_partial %}text-danger{% else %}text-muted{% endif %}">{% if item.size_kb == 0 %}Missing{% else %}{{ (item.size_kb / 1024) | round(precision=2) }} MB{% if item.is_partial %} (Partial){% endif %}{% endif %}</small>
+                    </div>
+                    <div class="text-end">
+                        {% if item.present and item.items > 0 %}
+                        <span class="badge bg-secondary rounded-pill">{{ item.items }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info" role="alert">
+        No sub-items found.
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="alert alert-warning" role="alert">
+    <strong>No Data:</strong> Unable to load agent information.
+</div>
+{% endif %}
+

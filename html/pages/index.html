@@ -4,6 +4,22 @@
     <body>
         {% include "utils/header.html" %}
         <div class="container-fluid" hx-get="/components/itemlist.html" hx-trigger="load"></div>
+
+        <!-- Agent Details Modal -->
+        <div class="modal fade" id="agentModal" tabindex="-1" aria-labelledby="agentModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="agentModalLabel">Agent Details</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="agentModalBody">
+                        <!-- Content will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {% include "utils/footer.html" %}
         {% include "utils/scripts.html" %}
     </body>
