@@ -99,18 +99,13 @@ pub async fn item_info(
             item_path: owned_path.clone(),
         };
 
-        tracing::info!("POST {:?}", &url);
-        tracing::info!("Request body: {:?}", &body);
 
         let response = client.post(&url).json(&body).send().await?;
 
         let status = response.status();
-        tracing::info!("DEBUG: Response status: {}", status);
-        tracing::info!("DEBUG: Response headers: {:?}", response.headers());
 
         // Handle 404 responses by creating an empty response
         if status == reqwest::StatusCode::NOT_FOUND {
-            tracing::info!("DEBUG: Agent returned 404, creating empty AgentItemInfoResponse");
             let empty_item = ItemGroup {
                 id: "".to_string(),
                 name: "".to_string(),
@@ -124,30 +119,13 @@ pub async fn item_info(
             continue;
         }
 
-        let response_text = response.text().await?;
-        tracing::info!("DEBUG: Raw response body: {}", response_text);
-
-        // Make another request to parse JSON (since we consumed the first response)
-        let resp_result = client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await?
-            .json::<AgentItemInfoResponse>()
-            .await;
+        let resp_result = response.json::<AgentItemInfoResponse>().await;
 
         let resp = match resp_result {
             Ok(parsed) => {
-                tracing::info!("DEBUG: Successfully parsed JSON response");
                 parsed
             }
             Err(e) => {
-                tracing::error!("DEBUG: Failed to parse JSON response: {}", e);
-                tracing::error!(
-                    "DEBUG: Response text that failed to parse: '{}'",
-                    response_text
-                );
-                tracing::error!("DEBUG: Expected format: AgentItemInfoResponse with 'item' field containing ItemGroup");
                 return Err(e);
             }
         };
