@@ -35,6 +35,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(pages::root))
+        .route("/agents", get(pages::agents_overview))
         .route_service("/favicon.ico", ServeFile::new("assets/favicon.ico"))
         .nest_service("/assets", ServeDir::new("assets"))
         .nest("/components", components::router())

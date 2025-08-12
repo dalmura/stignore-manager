@@ -99,7 +99,6 @@ pub async fn item_info(
             item_path: owned_path.clone(),
         };
 
-
         let response = client.post(&url).json(&body).send().await?;
 
         let status = response.status();
@@ -122,9 +121,7 @@ pub async fn item_info(
         let resp_result = response.json::<AgentItemInfoResponse>().await;
 
         let resp = match resp_result {
-            Ok(parsed) => {
-                parsed
-            }
+            Ok(parsed) => parsed,
             Err(e) => {
                 return Err(e);
             }

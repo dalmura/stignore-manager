@@ -137,7 +137,6 @@ async fn infopanel(
     State(state): State<AppState>,
     Json(payload): Json<InfoPanelRequest>,
 ) -> impl IntoResponse {
-
     let mut context = state.context.clone();
 
     let item_path: Vec<&str> = payload
@@ -147,10 +146,8 @@ async fn infopanel(
         .map(AsRef::as_ref)
         .collect();
 
-
     match agents::item_info(state.config.agents, item_path).await {
         Ok(response) => {
-
             let agent_items_with_status = calculate_sync_status(&response.agent_items);
 
             context.insert("item", &response.item);
@@ -159,14 +156,12 @@ async fn infopanel(
             context.insert("item_path", &payload.item_path);
         }
         Err(_) => {
-
             // Insert empty defaults to prevent template errors
             context.insert("agent_items", &Vec::<()>::new());
             context.insert("parent_names", &Vec::<String>::new());
             context.insert("item_path", &Vec::<String>::new());
         }
     }
-
 
     let result = RenderHtml(
         Key("components/infopanel.html".to_string()),
@@ -181,7 +176,6 @@ async fn agent_modal(
     State(state): State<AppState>,
     Query(query): Query<AgentModalQuery>,
 ) -> impl IntoResponse {
-
     let mut context = state.context.clone();
 
     // Parse the item_path (Axum already URL-decodes query parameters)
@@ -196,10 +190,8 @@ async fn agent_modal(
         parts
     };
 
-
     match agents::item_info(state.config.agents, item_path_parts.clone()).await {
         Ok(response) => {
-
             // Calculate sync status for all agents first
             let agent_items_with_status = calculate_sync_status(&response.agent_items);
 
@@ -208,7 +200,6 @@ async fn agent_modal(
                 .iter()
                 .find(|a| a.agent.name == query.agent_name)
             {
-
                 // Collect all unique item names and find max sizes
                 let mut all_item_names = std::collections::HashSet::new();
                 let mut max_sizes: std::collections::HashMap<String, u64> =
@@ -254,7 +245,6 @@ async fn agent_modal(
                 context.insert("agent_item", &agent_item_with_status);
                 context.insert("merged_items", &merged_items);
                 context.insert("item_path", &item_path_parts);
-
             } else {
                 // Agent not found, insert empty data
                 let error_msg = format!("Agent '{}' not found", query.agent_name);
@@ -266,7 +256,6 @@ async fn agent_modal(
             context.insert("error", &error_msg);
         }
     }
-
 
     let result = RenderHtml(
         Key("components/agent-modal.html".to_string()),
