@@ -8,7 +8,7 @@ use axum_template::engine::Engine;
 use tera::{Context, Tera};
 
 use axum::extract::FromRef;
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use tracing_subscriber::fmt;
 
 use tower_http::services::{ServeDir, ServeFile};
