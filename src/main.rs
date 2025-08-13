@@ -27,7 +27,7 @@ async fn main() {
     /* initialize tracing */
     fmt::init();
 
-    let tera = Tera::new("html/**/*").unwrap();
+    let tera = Tera::new("html/**/*.html").unwrap();
     let data = config::load_config("./config.toml");
     let mut context = Context::new();
     context.insert("title", "stignore-manager");

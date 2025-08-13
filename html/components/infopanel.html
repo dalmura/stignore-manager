@@ -27,6 +27,7 @@
         {% endif %}
         {% if i.sync_status != "Missing" %}
         <p>Size: {{ (i.item.size_kb / 1024) | round(precision=2) }} mb</p>
+        {% endif %}
         <div class="d-flex justify-content-start mt-2">
             {% if i.ignored %}
             <button class="btn btn-success btn-sm px-3" disabled>
@@ -66,7 +67,6 @@
             </button>
             {% endif %}
         </div>
-        {% endif %}
     </div>
     {% endfor %}
     {% if agent_items | length == 0 %}
