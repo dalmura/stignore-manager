@@ -11,10 +11,10 @@
     {% for i in agent_items %}
     <div class="col">
         <p>
-            <button class="btn btn-link p-0 text-start text-primary" 
+            <button class="btn btn-link p-0 text-start text-primary"
                     hx-get="/components/agent-modal.html?agent_name={{ i.agent.name | urlencode }}&item_path={{ item_path | join(sep='%2F') | urlencode }}"
                     hx-target="#agentModalBody"
-                    data-bs-toggle="modal" 
+                    data-bs-toggle="modal"
                     data-bs-target="#agentModal"
                     style="border: none; background: none; font-weight: inherit;">
                 {{ i.agent.name }}
@@ -27,6 +27,45 @@
         {% endif %}
         {% if i.sync_status != "Missing" %}
         <p>Size: {{ (i.item.size_kb / 1024) | round(precision=2) }} mb</p>
+        <div class="d-flex justify-content-start mt-2">
+            {% if i.ignored %}
+            <button class="btn btn-success btn-sm px-3" disabled>
+                Ignored
+            </button>
+            {% else %}
+            <button class="btn btn-warning btn-sm px-3"
+                    id="ignore-btn-{{ i.agent.name | replace(from=' ', to='-') | lower }}"
+                    hx-post="/components/ignore"
+                    hx-ext="json-enc"
+                    hx-include="#ignore-btn-{{ i.agent.name | replace(from=' ', to='-') | lower }} input"
+                    hx-confirm="Are you sure you want to ignore this item on {{ i.agent.name }}?"
+                    hx-swap="none"
+                    hx-on::after-request="
+                        if(event.detail.xhr.status === 200) {
+                            try {
+                                const response = JSON.parse(event.detail.xhr.responseText);
+                                if(response.success) {
+                                    this.textContent = 'Ignored';
+                                    this.disabled = true;
+                                    this.classList.remove('btn-warning');
+                                    this.classList.add('btn-success');
+                                } else {
+                                    alert('Error: ' + response.message);
+                                }
+                            } catch (parseError) {
+                                alert('Failed to parse server response');
+                            }
+                        } else {
+                            alert('Request failed with status: ' + event.detail.xhr.status + ' - ' + event.detail.xhr.statusText);
+                        }">
+                Ignore
+                <input type="hidden" name="agent_name" value="{{ i.agent.name }}">
+                {% for path_item in item_path %}
+                <input type="hidden" name="item_path" value="{{ path_item }}">
+                {% endfor %}
+            </button>
+            {% endif %}
+        </div>
         {% endif %}
     </div>
     {% endfor %}

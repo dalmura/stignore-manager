@@ -19,6 +19,7 @@ pub fn router() -> Router<AppState> {
         .route("/itemlist.html", get(itemlist))
         .route("/infopanel.html", post(infopanel))
         .route("/agent-modal.html", get(agent_modal))
+        .route("/ignore", post(ignore_item))
 }
 
 async fn navbar(State(state): State<AppState>) -> impl IntoResponse {
@@ -67,11 +68,47 @@ struct AgentModalQuery {
     item_path: String,
 }
 
+#[derive(Deserialize, Debug)]
+struct IgnoreItemRequest {
+    agent_name: String,
+    item_path: Vec<String>,
+}
+
+#[derive(Serialize, Debug)]
+struct IgnoreItemResponse {
+    success: bool,
+    message: String,
+}
+
+#[derive(Serialize, Debug)]
+struct AgentIgnoreRequest {
+    item_path: Vec<String>,
+}
+
+#[derive(Deserialize, Debug)]
+struct AgentIgnoreResponse {
+    success: bool,
+    message: String,
+    #[allow(dead_code)]
+    ignored_path: Option<String>,
+}
+
+#[derive(Serialize, Debug)]
+struct AgentIgnoreStatusRequest {
+    item_path: Vec<String>,
+}
+
+#[derive(Deserialize, Debug)]
+struct AgentIgnoreStatusResponse {
+    ignored: bool,
+}
+
 #[derive(Serialize, Debug)]
 struct AgentItemWithStatus {
     agent: crate::config::Agent,
     item: ItemGroup,
     sync_status: String,
+    ignored: bool,
 }
 
 #[derive(Serialize, Debug)]
@@ -99,8 +136,64 @@ fn collect_all_item_ids(item_group: &ItemGroup) -> HashSet<String> {
     ids
 }
 
-fn calculate_sync_status(
+async fn check_ignored_status(agent: &crate::config::Agent, item_path: &[String]) -> bool {
+    println!(
+        "Checking ignored status for agent {} with path {:?}",
+        agent.name, item_path
+    );
+    let client = reqwest::Client::new();
+    let url = format!("http://{}/api/v1/ignore-status", agent.hostname);
+
+    // Filter out empty strings from item_path (same as ignore request)
+    let filtered_item_path: Vec<String> = item_path
+        .iter()
+        .filter(|i| !i.is_empty())
+        .cloned()
+        .collect();
+
+    let ignore_status_request = AgentIgnoreStatusRequest {
+        item_path: filtered_item_path,
+    };
+
+    match client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .json(&ignore_status_request)
+        .send()
+        .await
+    {
+        Ok(response) => {
+            let status = response.status();
+            println!("Response status: {}", status);
+            if status.is_success() {
+                match response.json::<AgentIgnoreStatusResponse>().await {
+                    Ok(status_response) => {
+                        println!(
+                            "Agent {} returned ignored status: {}",
+                            agent.name, status_response.ignored
+                        );
+                        status_response.ignored
+                    }
+                    Err(e) => {
+                        println!("Failed to parse response for agent {}: {}", agent.name, e);
+                        false
+                    }
+                }
+            } else {
+                println!("Non-success status from agent {}: {}", agent.name, status);
+                false
+            }
+        }
+        Err(e) => {
+            println!("Failed to connect to agent {}: {}", agent.name, e);
+            false
+        }
+    }
+}
+
+async fn calculate_sync_status(
     agent_items: &[(crate::config::Agent, ItemGroup)],
+    item_path: &[String],
 ) -> Vec<AgentItemWithStatus> {
     // Collect all unique item IDs from all agents (including nested items)
     let mut all_item_ids: HashSet<String> = HashSet::new();
@@ -123,10 +216,14 @@ fn calculate_sync_status(
             "Partial".to_string()
         };
 
+        // Check if this item is ignored on this agent
+        let ignored = check_ignored_status(agent, item_path).await;
+
         result.push(AgentItemWithStatus {
             agent: agent.clone(),
             item: item_group.clone(),
             sync_status,
+            ignored,
         });
     }
 
@@ -148,7 +245,8 @@ async fn infopanel(
 
     match agents::item_info(state.config.agents, item_path).await {
         Ok(response) => {
-            let agent_items_with_status = calculate_sync_status(&response.agent_items);
+            let agent_items_with_status =
+                calculate_sync_status(&response.agent_items, &payload.item_path).await;
 
             context.insert("item", &response.item);
             context.insert("agent_items", &agent_items_with_status);
@@ -163,13 +261,11 @@ async fn infopanel(
         }
     }
 
-    let result = RenderHtml(
+    RenderHtml(
         Key("components/infopanel.html".to_string()),
         state.engine,
         context.into_json(),
-    );
-
-    result
+    )
 }
 
 async fn agent_modal(
@@ -193,7 +289,10 @@ async fn agent_modal(
     match agents::item_info(state.config.agents, item_path_parts.clone()).await {
         Ok(response) => {
             // Calculate sync status for all agents first
-            let agent_items_with_status = calculate_sync_status(&response.agent_items);
+            let item_path_vec: Vec<String> =
+                item_path_parts.iter().map(|s| s.to_string()).collect();
+            let agent_items_with_status =
+                calculate_sync_status(&response.agent_items, &item_path_vec).await;
 
             // Find the specific agent's data
             if let Some(agent_item_with_status) = agent_items_with_status
@@ -257,11 +356,83 @@ async fn agent_modal(
         }
     }
 
-    let result = RenderHtml(
+    RenderHtml(
         Key("components/agent-modal.html".to_string()),
         state.engine,
         context.into_json(),
-    );
+    )
+}
 
-    result
+async fn ignore_item(
+    State(state): State<AppState>,
+    Json(payload): Json<IgnoreItemRequest>,
+) -> impl IntoResponse {
+    // Find the agent by name
+    let agent = match state
+        .config
+        .agents
+        .iter()
+        .find(|a| a.name == payload.agent_name)
+    {
+        Some(agent) => agent,
+        None => {
+            return Json(IgnoreItemResponse {
+                success: false,
+                message: format!("Agent '{}' not found", payload.agent_name),
+            });
+        }
+    };
+
+    // Filter out empty strings from item_path (same as infopanel does)
+    let filtered_item_path: Vec<String> = payload
+        .item_path
+        .iter()
+        .filter(|i| !i.is_empty())
+        .cloned()
+        .collect();
+
+    // Build the ignore request for the agent
+    let ignore_request = AgentIgnoreRequest {
+        item_path: filtered_item_path,
+    };
+
+    // Send the ignore request to the agent
+    let client = reqwest::Client::new();
+    let url = format!("http://{}/api/v1/ignore", agent.hostname);
+
+    match client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .json(&ignore_request)
+        .send()
+        .await
+    {
+        Ok(response) => {
+            let status = response.status();
+
+            match response.json::<AgentIgnoreResponse>().await {
+                Ok(agent_response) => {
+                    if status.is_success() && agent_response.success {
+                        Json(IgnoreItemResponse {
+                            success: true,
+                            message: format!("Successfully ignored item on {}", agent.name),
+                        })
+                    } else {
+                        Json(IgnoreItemResponse {
+                            success: false,
+                            message: format!("Agent error: {}", agent_response.message),
+                        })
+                    }
+                }
+                Err(parse_error) => Json(IgnoreItemResponse {
+                    success: false,
+                    message: format!("Failed to parse agent response: {}", parse_error),
+                }),
+            }
+        }
+        Err(e) => Json(IgnoreItemResponse {
+            success: false,
+            message: format!("Failed to connect to agent: {}", e),
+        }),
+    }
 }
