@@ -12,6 +12,7 @@ pub struct Data {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ManagerConfig {
     pub port: u16,
+    pub minimum_copies: u8,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -51,6 +52,7 @@ mod tests {
             r#"
                 [manager]
                 port = 8000
+                minimum_copies = 2
                 
                 [[agents]]
                 name = "Agent 1"

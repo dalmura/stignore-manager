@@ -3,6 +3,13 @@ use crate::types::ItemGroup;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+fn set_copy_count_recursive(item: &mut ItemGroup, count: u8) {
+    item.copy_count = count;
+    for sub_item in &mut item.items {
+        set_copy_count_recursive(sub_item, count);
+    }
+}
+
 fn agent_endpoint(agent: &Agent, endpoint: &str, secure: bool) -> String {
     let base = match secure {
         true => "https",
@@ -38,7 +45,8 @@ pub async fn list_categories(
 
         agent_responses.push(resp.clone());
 
-        for item in resp.items {
+        for mut item in resp.items {
+            set_copy_count_recursive(&mut item, 1); // Each agent contributes 1 copy
             match consolidated.get(&item.id) {
                 Some(existing) => {
                     // Merge with existing item using addition
@@ -88,6 +96,7 @@ pub async fn item_info(
         size_kb: 0,
         items: vec![],
         leaf: false,
+        copy_count: 0,
     };
 
     let owned_path: Vec<String> = item_path.iter().map(|v| v.to_string()).collect();
@@ -111,6 +120,7 @@ pub async fn item_info(
                 size_kb: 0,
                 items: vec![],
                 leaf: false,
+                copy_count: 0,
             };
             let resp = AgentItemInfoResponse { item: empty_item };
             agent_responses.push((agent, resp.item.clone()));
@@ -128,7 +138,10 @@ pub async fn item_info(
         };
 
         agent_responses.push((agent, resp.item.clone()));
-        consolidated = resp.item.clone() + consolidated;
+        let mut item_with_count = resp.item.clone();
+        let count = if item_with_count.id.is_empty() { 0 } else { 1 };
+        set_copy_count_recursive(&mut item_with_count, count);
+        consolidated = item_with_count + consolidated;
     }
 
     Ok(ItemInfoResponse {

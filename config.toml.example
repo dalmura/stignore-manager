@@ -1,5 +1,6 @@
 [manager]
 port = 8000
+minimum_copies = 2
 
 [[agents]]
 name = "my.agent"

@@ -41,6 +41,7 @@ async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
         Ok(response) => {
             let mut sorted_items = response.items;
             sorted_items.sort_by(|a, b| a.name.cmp(&b.name));
+
             context.insert("items", &sorted_items);
         }
         Err(_) => {
@@ -48,6 +49,8 @@ async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
             context.insert("items", &items);
         }
     }
+
+    context.insert("minimum_copies", &state.config.manager.minimum_copies);
 
     RenderHtml(
         Key("components/itemlist.html".to_string()),
@@ -139,16 +142,11 @@ fn collect_all_item_ids(item_group: &ItemGroup) -> HashSet<String> {
     ids
 }
 
-
 async fn check_ignored_status(
     agent: &crate::config::Agent,
     item_path: &[String],
     hierarchy_names: &[String],
 ) -> bool {
-    println!(
-        "Checking ignored status for agent {} with path {:?}",
-        agent.name, item_path
-    );
     let client = reqwest::Client::new();
     let url = format!("http://{}/api/v1/ignore-status", agent.hostname);
 
@@ -168,7 +166,6 @@ async fn check_ignored_status(
 
     // Extract category_id (first non-empty item from item_path) and folder_path (from hierarchy_names)
     let (category_id, folder_path) = if filtered_item_path.is_empty() {
-        println!("No valid path provided for ignore status check");
         return false;
     } else {
         let category_id = filtered_item_path[0].clone();
@@ -196,30 +193,16 @@ async fn check_ignored_status(
     {
         Ok(response) => {
             let status = response.status();
-            println!("Response status: {}", status);
             if status.is_success() {
                 match response.json::<AgentIgnoreStatusResponse>().await {
-                    Ok(status_response) => {
-                        println!(
-                            "Agent {} returned ignored status: {}",
-                            agent.name, status_response.ignored
-                        );
-                        status_response.ignored
-                    }
-                    Err(e) => {
-                        println!("Failed to parse response for agent {}: {}", agent.name, e);
-                        false
-                    }
+                    Ok(status_response) => status_response.ignored,
+                    Err(_) => false,
                 }
             } else {
-                println!("Non-success status from agent {}: {}", agent.name, status);
                 false
             }
         }
-        Err(e) => {
-            println!("Failed to connect to agent {}: {}", agent.name, e);
-            false
-        }
+        Err(_) => false,
     }
 }
 

@@ -9,6 +9,8 @@ pub(crate) struct ItemGroup {
     pub size_kb: u64,
     pub items: Vec<ItemGroup>,
     pub leaf: bool,
+    #[serde(default)]
+    pub copy_count: u8,
 }
 
 impl PartialEq for ItemGroup {
@@ -64,6 +66,9 @@ impl Add for ItemGroup {
             .map(|item| item.size_kb)
             .sum::<u64>();
 
+        let self_empty = self.id.is_empty();
+        let other_empty = other.id.is_empty();
+
         Self {
             id: self.id,
             name: if self.name.is_empty() {
@@ -74,6 +79,13 @@ impl Add for ItemGroup {
             size_kb: total_size_kb,
             items: merged_items_vec,
             leaf: self.leaf && other.leaf, // Only leaf if both are leaf
+            copy_count: if self_empty {
+                other.copy_count
+            } else if other_empty {
+                self.copy_count
+            } else {
+                self.copy_count + other.copy_count
+            },
         }
     }
 }
