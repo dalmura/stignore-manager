@@ -72,6 +72,7 @@ struct AgentModalQuery {
 struct IgnoreItemRequest {
     agent_name: String,
     item_path: Vec<String>,
+    hierarchy_names: Vec<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -82,7 +83,8 @@ struct IgnoreItemResponse {
 
 #[derive(Serialize, Debug)]
 struct AgentIgnoreRequest {
-    item_path: Vec<String>,
+    category_id: String,
+    folder_path: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -95,7 +97,8 @@ struct AgentIgnoreResponse {
 
 #[derive(Serialize, Debug)]
 struct AgentIgnoreStatusRequest {
-    item_path: Vec<String>,
+    category_id: String,
+    folder_path: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -136,7 +139,12 @@ fn collect_all_item_ids(item_group: &ItemGroup) -> HashSet<String> {
     ids
 }
 
-async fn check_ignored_status(agent: &crate::config::Agent, item_path: &[String]) -> bool {
+
+async fn check_ignored_status(
+    agent: &crate::config::Agent,
+    item_path: &[String],
+    hierarchy_names: &[String],
+) -> bool {
     println!(
         "Checking ignored status for agent {} with path {:?}",
         agent.name, item_path
@@ -151,8 +159,32 @@ async fn check_ignored_status(agent: &crate::config::Agent, item_path: &[String]
         .cloned()
         .collect();
 
+    // Filter out empty strings from hierarchy_names (same as item_path filtering)
+    let filtered_hierarchy_names: Vec<String> = hierarchy_names
+        .iter()
+        .filter(|name| !name.is_empty())
+        .cloned()
+        .collect();
+
+    // Extract category_id (first non-empty item from item_path) and folder_path (from hierarchy_names)
+    let (category_id, folder_path) = if filtered_item_path.is_empty() {
+        println!("No valid path provided for ignore status check");
+        return false;
+    } else {
+        let category_id = filtered_item_path[0].clone();
+        // Use hierarchy_names for folder path (skip the first one which is the category)
+        let folder_path = if filtered_hierarchy_names.len() > 1 {
+            filtered_hierarchy_names[1..].to_vec()
+        } else {
+            vec![]
+        };
+
+        (category_id, folder_path)
+    };
+
     let ignore_status_request = AgentIgnoreStatusRequest {
-        item_path: filtered_item_path,
+        category_id,
+        folder_path,
     };
 
     match client
@@ -194,6 +226,7 @@ async fn check_ignored_status(agent: &crate::config::Agent, item_path: &[String]
 async fn calculate_sync_status(
     agent_items: &[(crate::config::Agent, ItemGroup)],
     item_path: &[String],
+    hierarchy_names: &[String],
 ) -> Vec<AgentItemWithStatus> {
     // Collect all unique item IDs from all agents (including nested items)
     let mut all_item_ids: HashSet<String> = HashSet::new();
@@ -217,7 +250,7 @@ async fn calculate_sync_status(
         };
 
         // Check if this item is ignored on this agent
-        let ignored = check_ignored_status(agent, item_path).await;
+        let ignored = check_ignored_status(agent, item_path, hierarchy_names).await;
 
         result.push(AgentItemWithStatus {
             agent: agent.clone(),
@@ -245,8 +278,12 @@ async fn infopanel(
 
     match agents::item_info(state.config.agents, item_path).await {
         Ok(response) => {
-            let agent_items_with_status =
-                calculate_sync_status(&response.agent_items, &payload.item_path).await;
+            let agent_items_with_status = calculate_sync_status(
+                &response.agent_items,
+                &payload.item_path,
+                &payload.hierarchy_names,
+            )
+            .await;
 
             context.insert("item", &response.item);
             context.insert("agent_items", &agent_items_with_status);
@@ -291,8 +328,15 @@ async fn agent_modal(
             // Calculate sync status for all agents first
             let item_path_vec: Vec<String> =
                 item_path_parts.iter().map(|s| s.to_string()).collect();
-            let agent_items_with_status =
-                calculate_sync_status(&response.agent_items, &item_path_vec).await;
+            // For agent modal, we don't have hierarchy_names, so create empty vector
+            // The ignore status check might not work correctly here
+            let empty_hierarchy_names: Vec<String> = vec![];
+            let agent_items_with_status = calculate_sync_status(
+                &response.agent_items,
+                &item_path_vec,
+                &empty_hierarchy_names,
+            )
+            .await;
 
             // Find the specific agent's data
             if let Some(agent_item_with_status) = agent_items_with_status
@@ -391,9 +435,36 @@ async fn ignore_item(
         .cloned()
         .collect();
 
+    // Filter out empty strings from hierarchy_names (same as item_path filtering)
+    let filtered_hierarchy_names: Vec<String> = payload
+        .hierarchy_names
+        .iter()
+        .filter(|name| !name.is_empty())
+        .cloned()
+        .collect();
+
+    // Extract category_id (first non-empty item from item_path) and folder_path (from hierarchy_names)
+    let (category_id, folder_path) = if filtered_item_path.is_empty() {
+        return Json(IgnoreItemResponse {
+            success: false,
+            message: "No valid path provided".to_string(),
+        });
+    } else {
+        let category_id = filtered_item_path[0].clone();
+        // Use hierarchy_names for folder path (skip the first one which is the category)
+        let folder_path = if filtered_hierarchy_names.len() > 1 {
+            filtered_hierarchy_names[1..].to_vec()
+        } else {
+            vec![]
+        };
+
+        (category_id, folder_path)
+    };
+
     // Build the ignore request for the agent
     let ignore_request = AgentIgnoreRequest {
-        item_path: filtered_item_path,
+        category_id,
+        folder_path,
     };
 
     // Send the ignore request to the agent
