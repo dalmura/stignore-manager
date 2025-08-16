@@ -46,7 +46,8 @@ pub async fn list_categories(
         agent_responses.push(resp.clone());
 
         for mut item in resp.items {
-            set_copy_count_recursive(&mut item, 1); // Each agent contributes 1 copy
+            // Use simple copy counting for performance - ignore checking disabled for now
+            set_copy_count_recursive(&mut item, 1);
             match consolidated.get(&item.id) {
                 Some(existing) => {
                     // Merge with existing item using addition
@@ -84,6 +85,7 @@ pub(crate) struct ItemInfoResponse {
     pub item: ItemGroup,
     pub agent_items: Vec<(Agent, ItemGroup)>,
 }
+
 
 pub async fn item_info(
     agents: Vec<Agent>,

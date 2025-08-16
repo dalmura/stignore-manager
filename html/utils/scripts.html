@@ -1,3 +1,116 @@
 <script src="/assets/js/htmx.min.js"></script>
 <script src="https://unpkg.com/htmx-ext-json-enc@2.0.0/json-enc.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+<script>
+function refreshItemData() {
+    // Force complete page reload to ensure fresh server-side calculation
+    setTimeout(() => {
+        // Instead of trying to refresh via HTMX, force a complete page reload
+        // This ensures the server does a complete fresh calculation
+        window.location.reload();
+    }, 1000);
+}
+
+function showToast(message, type = 'success') {
+    const toastContainer = document.querySelector('.toast-container');
+    const toastId = 'toast-' + Date.now();
+
+    const bgClass = type === 'success' ? 'bg-success' : 'bg-danger';
+    const icon = type === 'success' ? '✓' : '✕';
+
+    const toastHtml = `
+        <div id="${toastId}" class="toast ${bgClass} text-white" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header ${bgClass} text-white border-0">
+                <strong class="me-auto">${icon} ${type === 'success' ? 'Success' : 'Error'}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+
+    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, {
+        autohide: true,
+        delay: type === 'success' ? 3000 : 5000
+    });
+
+    toast.show();
+
+    // Remove toast element after it's hidden
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
+function setupDeleteModal(button) {
+    const agentName = button.getAttribute('data-agent-name');
+    const itemPath = button.getAttribute('data-item-path').split(',');
+    const hierarchyNames = button.getAttribute('data-hierarchy-names').split(',');
+    const itemName = button.getAttribute('data-item-name');
+
+    // Set modal content
+    document.getElementById('deleteAgentName').textContent = agentName;
+    document.getElementById('deleteItemName').textContent = itemName;
+
+    // TODO: Load item details to show what will be deleted
+    // For now, we'll show basic info
+    document.getElementById('deleteItemDetails').innerHTML = '<p>This will permanently delete the item and all its contents from the filesystem.</p>';
+
+    // Store data for the actual delete operation
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = function() {
+        performDelete(agentName, itemPath, hierarchyNames);
+    };
+}
+
+function performDelete(agentName, itemPath, hierarchyNames) {
+    const deleteData = {
+        agent_name: agentName,
+        item_path: itemPath,
+        hierarchy_names: hierarchyNames
+    };
+
+    fetch('/components/delete', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(deleteData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+            modal.hide();
+
+            // Show success toast
+            showToast('Item deleted successfully', 'success');
+
+            // Refresh item data
+            refreshItemData();
+        } else {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+            modal.hide();
+
+            // Show error toast
+            showToast(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+        modal.hide();
+
+        // Show network error toast
+        showToast('Failed to connect to server. Please try again.', 'error');
+        console.error('Delete request failed:', error);
+    });
+}
+</script>

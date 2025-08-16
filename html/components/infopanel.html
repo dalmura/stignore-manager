@@ -50,20 +50,39 @@
                                     this.disabled = true;
                                     this.classList.remove('btn-warning');
                                     this.classList.add('btn-success');
+                                    showToast('Item ignored successfully', 'success');
+                                    // Refresh item data
+                                    refreshItemData();
                                 } else {
-                                    alert('Error: ' + response.message);
+                                    showToast(response.message, 'error');
                                 }
                             } catch (parseError) {
-                                alert('Failed to parse server response');
+                                showToast('Failed to parse server response', 'error');
                             }
                         } else {
-                            alert('Request failed with status: ' + event.detail.xhr.status + ' - ' + event.detail.xhr.statusText);
+                            showToast('Request failed with status: ' + event.detail.xhr.status, 'error');
                         }">
                 Ignore
                 <input type="hidden" name="agent_name" value="{{ i.agent.name }}">
                 {% for path_item in item_path %}
                 <input type="hidden" name="item_path" value="{{ path_item }}">
                 {% endfor %}
+                {% for hierarchy_item in hierarchy_names %}
+                <input type="hidden" name="hierarchy_names" value="{{ hierarchy_item }}">
+                {% endfor %}
+            </button>
+            {% endif %}
+            {% if i.sync_status != "Missing" %}
+            <button class="btn btn-danger btn-sm px-3 ms-2"
+                    id="delete-btn-{{ i.agent.name | replace(from=' ', to='-') | lower }}"
+                    data-bs-toggle="modal"
+                    data-bs-target="#deleteModal"
+                    data-agent-name="{{ i.agent.name }}"
+                    data-item-path="{{ item_path | join(sep=',') }}"
+                    data-hierarchy-names="{{ hierarchy_names | join(sep=',') }}"
+                    data-item-name="{{ parent_names | join(sep=' / ') }}"
+                    onclick="setupDeleteModal(this)">
+                Delete
             </button>
             {% endif %}
         </div>
