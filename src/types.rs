@@ -27,6 +27,20 @@ impl Hash for ItemGroup {
     }
 }
 
+impl ItemGroup {
+    pub fn has_insufficient_copies(&self, minimum_copies: u8) -> bool {
+        // Check if this item itself has insufficient copies
+        if self.copy_count < minimum_copies {
+            return true;
+        }
+
+        // Recursively check if any child has insufficient copies
+        self.items
+            .iter()
+            .any(|item| item.has_insufficient_copies(minimum_copies))
+    }
+}
+
 impl Add for ItemGroup {
     type Output = Self;
 

@@ -34,6 +34,42 @@ async fn navbar(State(state): State<AppState>) -> impl IntoResponse {
     )
 }
 
+#[derive(Serialize, Debug, Clone)]
+struct ItemGroupWithFlags {
+    pub id: String,
+    pub name: String,
+    pub size_kb: u64,
+    pub items: Vec<ItemGroupWithFlags>,
+    pub leaf: bool,
+    pub copy_count: u8,
+    pub has_insufficient_copies: bool,
+}
+
+impl From<&ItemGroup> for ItemGroupWithFlags {
+    fn from(item: &ItemGroup) -> Self {
+        Self {
+            id: item.id.clone(),
+            name: item.name.clone(),
+            size_kb: item.size_kb,
+            items: vec![], // Will be filled separately
+            leaf: item.leaf,
+            copy_count: item.copy_count,
+            has_insufficient_copies: false, // Will be set separately
+        }
+    }
+}
+
+fn convert_item_with_flags(item: &ItemGroup, minimum_copies: u8) -> ItemGroupWithFlags {
+    let mut converted = ItemGroupWithFlags::from(item);
+    converted.has_insufficient_copies = item.has_insufficient_copies(minimum_copies);
+    converted.items = item
+        .items
+        .iter()
+        .map(|child| convert_item_with_flags(child, minimum_copies))
+        .collect();
+    converted
+}
+
 async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
     let mut context = state.context.clone();
 
@@ -42,10 +78,16 @@ async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
             let mut sorted_items = response.items;
             sorted_items.sort_by(|a, b| a.name.cmp(&b.name));
 
-            context.insert("items", &sorted_items);
+            // Convert to ItemGroupWithFlags with has_insufficient_copies field
+            let items_with_flags: Vec<ItemGroupWithFlags> = sorted_items
+                .iter()
+                .map(|item| convert_item_with_flags(item, state.config.manager.minimum_copies))
+                .collect();
+
+            context.insert("items", &items_with_flags);
         }
         Err(_) => {
-            let items: Vec<ItemGroup> = vec![];
+            let items: Vec<ItemGroupWithFlags> = vec![];
             context.insert("items", &items);
         }
     }
