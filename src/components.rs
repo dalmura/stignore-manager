@@ -13,6 +13,12 @@ use std::collections::HashSet;
 
 use super::AppState;
 
+fn sanitize_id(id: &str) -> String {
+    use base64::Engine;
+    let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(id.as_bytes());
+    format!("id_{}", encoded)
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/navbar.html", get(navbar))
@@ -38,6 +44,7 @@ async fn navbar(State(state): State<AppState>) -> impl IntoResponse {
 #[derive(Serialize, Debug, Clone)]
 struct ItemGroupWithFlags {
     pub id: String,
+    pub safe_id: String,
     pub name: String,
     pub size_kb: u64,
     pub items: Vec<ItemGroupWithFlags>,
@@ -50,6 +57,7 @@ impl From<&ItemGroup> for ItemGroupWithFlags {
     fn from(item: &ItemGroup) -> Self {
         Self {
             id: item.id.clone(),
+            safe_id: sanitize_id(&item.id),
             name: item.name.clone(),
             size_kb: item.size_kb,
             items: vec![], // Will be filled separately
@@ -70,7 +78,6 @@ fn convert_item_with_flags(item: &ItemGroup, minimum_copies: u8) -> ItemGroupWit
         .collect();
     converted
 }
-
 
 async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
     let mut context = state.context.clone();
@@ -214,12 +221,12 @@ struct MergedItem {
 fn collect_all_item_ids(item_group: &ItemGroup) -> HashSet<String> {
     let mut ids = HashSet::new();
 
-    // Add this item's ID if it has one and is not empty
+    // Add this item's id if it is not empty
     if !item_group.id.is_empty() {
         ids.insert(item_group.id.clone());
     }
 
-    // Recursively collect IDs from all sub-items
+    // Recursively collect ids from all sub-items
     for item in &item_group.items {
         ids.extend(collect_all_item_ids(item));
     }
@@ -439,14 +446,14 @@ async fn agent_modal(
                 .iter()
                 .find(|a| a.agent.name == query.agent_name)
             {
-                // Collect all unique item names and find max sizes
-                let mut all_item_names = std::collections::HashSet::new();
+                // Collect all unique item IDs and find max sizes
+                let mut all_item_ids = std::collections::HashSet::new();
                 let mut max_sizes: std::collections::HashMap<String, u64> =
                     std::collections::HashMap::new();
 
                 for agent_with_status in &agent_items_with_status {
                     for item in &agent_with_status.item.items {
-                        all_item_names.insert(item.name.clone());
+                        all_item_ids.insert(item.name.clone());
                         max_sizes
                             .entry(item.name.clone())
                             .and_modify(|max| *max = (*max).max(item.size_kb))
@@ -456,7 +463,7 @@ async fn agent_modal(
 
                 // Create merged items showing availability across agents
                 let mut merged_items = Vec::new();
-                for item_name in all_item_names {
+                for item_name in all_item_ids {
                     let current_agent_item = agent_item_with_status
                         .item
                         .items

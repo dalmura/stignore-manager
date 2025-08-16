@@ -86,7 +86,6 @@ pub(crate) struct ItemInfoResponse {
     pub agent_items: Vec<(Agent, ItemGroup)>,
 }
 
-
 pub async fn item_info(
     agents: Vec<Agent>,
     item_path: Vec<&str>,

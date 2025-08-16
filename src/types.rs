@@ -47,7 +47,7 @@ impl Add for ItemGroup {
     fn add(self, other: Self) -> Self {
         use std::collections::HashMap;
 
-        // Merge items by ID, using addition for duplicates
+        // Merge items by id, using addition for duplicates
         let mut merged_items: HashMap<String, ItemGroup> = HashMap::new();
 
         // Add all items from self
@@ -84,7 +84,11 @@ impl Add for ItemGroup {
         let other_empty = other.id.is_empty();
 
         Self {
-            id: self.id,
+            id: if self.id.is_empty() {
+                other.id
+            } else {
+                self.id
+            },
             name: if self.name.is_empty() {
                 other.name
             } else {

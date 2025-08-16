@@ -43,11 +43,11 @@ pub async fn agents_overview(State(state): State<AppState>) -> impl IntoResponse
         Ok(category_response) => {
             let mut agent_summaries = Vec::new();
 
-            // Get all categories with both ID and name
-            let categories: Vec<(String, String)> = category_response
+            // Get all category names
+            let categories: Vec<String> = category_response
                 .items
                 .iter()
-                .map(|item| (item.id.clone(), item.name.clone()))
+                .map(|item| item.name.clone())
                 .collect();
 
             // For each agent, collect category-specific data
@@ -56,9 +56,12 @@ pub async fn agents_overview(State(state): State<AppState>) -> impl IntoResponse
                 let mut category_infos = Vec::new();
 
                 // Query each category for this agent
-                for (category_id, category_name) in &categories {
-                    match agents::item_info(state.config.agents.clone(), vec![category_id.as_str()])
-                        .await
+                for category_name in &categories {
+                    match agents::item_info(
+                        state.config.agents.clone(),
+                        vec![category_name.as_str()],
+                    )
+                    .await
                     {
                         Ok(item_response) => {
                             // Find this agent's data in the response

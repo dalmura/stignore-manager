@@ -8,14 +8,14 @@
         <div class="list-group" id="parentList" role="tablist">
             {% for i in items %}
             <a
-                id="parent-item-{{ i.id }}"
+                id="parent-item-{{ i.safe_id }}"
                 class="d-flex justify-content-between align-items-center list-group-item list-group-item-action{% if i.has_insufficient_copies %} list-group-item-warning{% endif %}"
                 data-bs-toggle="list"
-                href="#list-sub1-{{ i.id }}"
+                href="#list-sub1-{{ i.safe_id }}"
                 role="tab"
                 hx-post="/components/infopanel.html"
                 hx-ext="json-enc"
-                hx-include="#parent-item-{{ i.id }} input"
+                hx-include="#parent-item-{{ i.safe_id }} input"
                 hx-target="#info-panel"
             >
                 {{ i.name }}
@@ -58,18 +58,18 @@
     <div class="col">
         <div class="tab-content" id="sub1List" role="tablist">
             {% for i in items %}
-            <div class="tab-pane" id="list-sub1-{{ i.id }}" role="tabpanel">
-                <div class="list-group" id="list-sub1-tabs-{{ i.id }}" role="tablist">
+            <div class="tab-pane" id="list-sub1-{{ i.safe_id }}" role="tabpanel">
+                <div class="list-group" id="list-sub1-tabs-{{ i.safe_id }}" role="tablist">
                     {% for j in i.items %}
                     <a
-                            id="item-sub1-{{ j.id }}"
+                            id="item-sub1-{{ j.safe_id }}"
                             class="d-flex justify-content-between align-items-center list-group-item list-group-item-action{% if j.has_insufficient_copies %} list-group-item-warning{% endif %}"
                             data-bs-toggle="list"
-                            href="#list-sub2-{{ j.id }}"
+                            href="#list-sub2-{{ j.safe_id }}"
                             role="tab"
                             hx-post="/components/infopanel.html"
                             hx-ext="json-enc"
-                            hx-include="#item-sub1-{{ j.id }} input"
+                            hx-include="#item-sub1-{{ j.safe_id }} input"
                             hx-target="#info-panel"
                     >
                         {{ j.name }}
@@ -107,18 +107,18 @@
         <div class="tab-content" id="sub2List" role="tablist">
             {% for i in items %}
             {% for j in i.items %}{% if not j.leaf %}
-            <div class="tab-pane" id="list-sub2-{{ j.id }}" role="tabpanel">
-                <div class="list-group" id="list-sub2-tabs-{{ j.id }}" role="tablist">
+            <div class="tab-pane" id="list-sub2-{{ j.safe_id }}" role="tabpanel">
+                <div class="list-group" id="list-sub2-tabs-{{ j.safe_id }}" role="tablist">
                     {% for k in j.items %}
                     <a
-                            id="item-sub2-{{ k.id }}"
+                            id="item-sub2-{{ k.safe_id }}"
                             class="d-flex justify-content-between align-items-center list-group-item list-group-item-action{% if k.copy_count < minimum_copies %} list-group-item-warning{% endif %}"
                             data-bs-toggle="list"
                             href="#"
                             role="tab"
                             hx-post="/components/infopanel.html"
                             hx-ext="json-enc"
-                            hx-include="#item-sub2-{{ k.id }} input"
+                            hx-include="#item-sub2-{{ k.safe_id }} input"
                             hx-target="#info-panel"
                     >
                         {{ k.name }}

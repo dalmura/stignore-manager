@@ -15,3 +15,4 @@ toml = "0.8.19"
 tera = "1.20.0"
 tower-http = { version = "0.6.1", features = ["fs"] }
 reqwest = { version = "0.12.9", features = ["json"] }
+base64 = "0.22"
