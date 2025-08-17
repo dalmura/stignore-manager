@@ -136,20 +136,31 @@
             {% endfor %}
         </div>
     </div>
-</div>
-
-<script>
-    // Add click handlers for level 3 items
-    document.addEventListener('DOMContentLoaded', function() {
-        const triggerSub2TabList = document.querySelectorAll('#sub2List a');
+    <script>
+        // Set up click handlers for level 3 items (item-sub2-*)
+        const triggerSub2TabList = document.querySelectorAll('a[id^="item-sub2-"]');
         triggerSub2TabList.forEach(triggerEl => {
             triggerEl.addEventListener('click', event => {
                 // Update URL with selected element ID
                 updateUrlWithSelection(triggerEl.id);
             });
         });
+    </script>
+</div>
 
+<script>
+    // URL restoration logic
+    document.addEventListener('DOMContentLoaded', function() {
         // Restore selection from URL after page loads
-        setTimeout(restoreSelectionFromUrl, 200);
+        setTimeout(() => {
+            restoreSelectionFromUrl();
+        }, 200);
     });
+
+    // Also try calling immediately in case DOMContentLoaded already fired
+    setTimeout(() => {
+        if (typeof restoreSelectionFromUrl === 'function') {
+            restoreSelectionFromUrl();
+        }
+    }, 500);
 </script>

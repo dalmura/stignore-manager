@@ -134,12 +134,67 @@ function restoreSelectionFromUrl() {
     const selectedId = getSelectionFromUrl();
 
     if (selectedId) {
-        const selectedElement = document.getElementById(selectedId);
-        if (selectedElement) {
-            // For Bootstrap tabs, we need to show the tab and trigger click
-            const tab = new bootstrap.Tab(selectedElement);
-            tab.show();
-            selectedElement.click();
+        if (selectedId.startsWith('parent-item-')) {
+            // Level 1 selection
+            const selectedElement = document.getElementById(selectedId);
+            if (selectedElement) {
+                const tab = new bootstrap.Tab(selectedElement);
+                tab.show();
+                selectedElement.click();
+            }
+        } else if (selectedId.startsWith('item-sub1-')) {
+            // Level 2 selection - need to activate parent first
+            const parts = selectedId.split('-');
+            const parentId = `parent-item-${parts[2]}`;
+
+            const parentElement = document.getElementById(parentId);
+            if (parentElement) {
+                const parentTab = new bootstrap.Tab(parentElement);
+                parentTab.show();
+                parentElement.click();
+
+                // Wait for parent to load, then activate the sub item
+                setTimeout(() => {
+                    const selectedElement = document.getElementById(selectedId);
+                    if (selectedElement) {
+                        const tab = new bootstrap.Tab(selectedElement);
+                        tab.show();
+                        selectedElement.click();
+                    }
+                }, 100);
+            }
+        } else if (selectedId.startsWith('item-sub2-')) {
+            // Level 3 selection - need to activate parent and grandparent first
+            const parts = selectedId.split('-');
+            const grandparentId = `parent-item-${parts[2]}`;
+            const parentId = `item-sub1-${parts[2]}-${parts[3]}`;
+
+            const grandparentElement = document.getElementById(grandparentId);
+            if (grandparentElement) {
+                const grandparentTab = new bootstrap.Tab(grandparentElement);
+                grandparentTab.show();
+                grandparentElement.click();
+
+                // Wait for grandparent to load, then activate parent
+                setTimeout(() => {
+                    const parentElement = document.getElementById(parentId);
+                    if (parentElement) {
+                        const parentTab = new bootstrap.Tab(parentElement);
+                        parentTab.show();
+                        parentElement.click();
+
+                        // Wait for parent to load, then activate the final item
+                        setTimeout(() => {
+                            const selectedElement = document.getElementById(selectedId);
+                            if (selectedElement) {
+                                const tab = new bootstrap.Tab(selectedElement);
+                                tab.show();
+                                selectedElement.click();
+                            }
+                        }, 100);
+                    }
+                }, 100);
+            }
         }
     }
 }
