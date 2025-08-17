@@ -38,7 +38,11 @@ pub async fn list_categories(
 
     for agent in agents {
         let url = agent_endpoint(&agent, "api/v1/categories", false);
-        let resp = reqwest::get(&url)
+        let client = reqwest::Client::new();
+        let resp = client
+            .get(&url)
+            .header("X-API-Key", &agent.api_key)
+            .send()
             .await?
             .json::<AgentCategoryListingResponse>()
             .await?;
@@ -109,7 +113,12 @@ pub async fn item_info(
             item_path: owned_path.clone(),
         };
 
-        let response = client.post(&url).json(&body).send().await?;
+        let response = client
+            .post(&url)
+            .header("X-API-Key", &agent.api_key)
+            .json(&body)
+            .send()
+            .await?;
 
         let status = response.status();
 

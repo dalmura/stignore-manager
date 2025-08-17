@@ -19,6 +19,7 @@ pub struct ManagerConfig {
 pub struct Agent {
     pub name: String,
     pub hostname: String,
+    pub api_key: String,
 }
 
 pub fn load_config(filename: &str) -> Data {
@@ -57,6 +58,7 @@ mod tests {
                 [[agents]]
                 name = "Agent 1"
                 hostname = "localhost:3000"
+                api_key = "550e8400-e29b-41d4-a716-446655440000"
             "#,
         );
         assert!(data.is_ok());

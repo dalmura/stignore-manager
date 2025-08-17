@@ -5,3 +5,4 @@ minimum_copies = 2
 [[agents]]
 name = "my.agent"
 hostname = "my.agent.hostname"
+api_key = "550e8400-e29b-41d4-a716-446655440000"
