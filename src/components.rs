@@ -274,6 +274,7 @@ async fn check_ignored_status_bulk(
         match client
             .post(&url)
             .header("Content-Type", "application/json")
+            .header("X-API-Key", &agent.api_key)
             .json(&bulk_request)
             .send()
             .await
@@ -555,6 +556,7 @@ async fn ignore_item(
     match client
         .post(&url)
         .header("Content-Type", "application/json")
+        .header("X-API-Key", &agent.api_key)
         .json(&ignore_request)
         .send()
         .await

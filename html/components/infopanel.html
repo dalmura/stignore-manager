@@ -1,91 +1,145 @@
 
 <div class="row">
     <div class="col">
-        <br>
-    </div>
-</div>
-<div class="row border border-primary rounded">
-    <div class="col">
-        <p>Item: {{ parent_names | join(sep=' / ') }}</p>
-    </div>
-    {% for i in agent_items %}
-    <div class="col">
-        <p>
-            <button class="btn btn-link p-0 text-start text-primary"
-                    hx-get="/components/agent-modal.html?agent_name={{ i.agent.name | urlencode }}&item_path={{ item_path | join(sep='%2F') | urlencode }}"
-                    hx-target="#agentModalBody"
-                    data-bs-toggle="modal"
-                    data-bs-target="#agentModal"
-                    style="border: none; background: none; font-weight: inherit;">
-                {{ i.agent.name }}
-            </button>
-        </p>
-        {% if i.sync_status == "In Sync" %}
-        <p>Status: {{ i.sync_status }}</p>
-        {% else %}
-        <p style="color: red;">Status: {{ i.sync_status }}</p>
-        {% endif %}
-        {% if i.sync_status != "Missing" %}
-        <p>Size: {{ (i.item.size_kb / 1024) | round(precision=2) }} mb</p>
-        {% endif %}
-        <div class="d-flex justify-content-start mt-2">
-            {% if i.ignored %}
-            <button class="btn btn-success btn-sm px-3" disabled>
-                Ignored
-            </button>
-            {% else %}
-            <button class="btn btn-warning btn-sm px-3"
-                    id="ignore-btn-{{ i.agent.name | replace(from=' ', to='-') | lower }}"
-                    hx-post="/components/ignore"
-                    hx-ext="json-enc"
-                    hx-include="#ignore-btn-{{ i.agent.name | replace(from=' ', to='-') | lower }} input"
-                    hx-confirm="Are you sure you want to ignore this item on {{ i.agent.name }}?"
-                    hx-swap="none"
-                    hx-on::after-request="
-                        if(event.detail.xhr.status === 200) {
-                            try {
-                                const response = JSON.parse(event.detail.xhr.responseText);
-                                if(response.success) {
-                                    this.textContent = 'Ignored';
-                                    this.disabled = true;
-                                    this.classList.remove('btn-warning');
-                                    this.classList.add('btn-success');
-                                    showToast('Item ignored successfully', 'success');
-                                    // Refresh item data
-                                    refreshItemData();
-                                } else {
-                                    showToast(response.message, 'error');
-                                }
-                            } catch (parseError) {
-                                showToast('Failed to parse server response', 'error');
-                            }
-                        } else {
-                            showToast('Request failed with status: ' + event.detail.xhr.status, 'error');
-                        }">
-                Ignore
-                <input type="hidden" name="agent_name" value="{{ i.agent.name }}">
-                {% for path_item in item_path %}
-                <input type="hidden" name="item_path" value="{{ path_item }}">
+        <div class="card mt-2 shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0 d-flex align-items-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="me-2">
+                        <path d="M12,2A2,2 0 0,1 14,4C14,4.74 13.6,5.39 13,5.73V7H14A7,7 0 0,1 21,14H22A1,1 0 0,1 23,15V18A1,1 0 0,1 22,19H21V20A2,2 0 0,1 19,22H5A2,2 0 0,1 3,20V19H2A1,1 0 0,1 1,18V15A1,1 0 0,1 2,14H3A7,7 0 0,1 10,7H11V5.73C10.4,5.39 10,4.74 10,4A2,2 0 0,1 12,2M7.5,13A2.5,2.5 0 0,0 5,15.5A2.5,2.5 0 0,0 7.5,18A2.5,2.5 0 0,0 10,15.5A2.5,2.5 0 0,0 7.5,13M16.5,13A2.5,2.5 0 0,0 14,15.5A2.5,2.5 0 0,0 16.5,18A2.5,2.5 0 0,0 19,15.5A2.5,2.5 0 0,0 16.5,13Z"/>
+                    </svg>
+                    {{ parent_names | join(sep=' / ') }}
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="row g-0">
+                {% for i in agent_items %}
+                <div class="col-md-4 col-lg-3">
+                    <div class="p-2 border-end">
+                        <div class="d-flex align-items-center mb-2">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="me-2 text-primary">
+                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                            </svg>
+                            <button class="btn btn-link p-0 text-start fw-bold text-decoration-none"
+                                    hx-get="/components/agent-modal.html?agent_name={{ i.agent.name | urlencode }}&item_path={{ item_path | join(sep='%2F') | urlencode }}"
+                                    hx-target="#agentModalBody"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#agentModal"
+                                    style="border: none; background: none; color: var(--primary-color);">
+                                {{ i.agent.name }}
+                            </button>
+                        </div>
+
+                        <div class="mb-2">
+                            {% if i.sync_status == "In Sync" %}
+                            <span class="badge bg-success d-flex align-items-center">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                </svg>
+                                {{ i.sync_status }}
+                            </span>
+                            {% elif i.sync_status == "Missing" %}
+                            <span class="badge bg-danger d-flex align-items-center">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                                </svg>
+                                {{ i.sync_status }}
+                            </span>
+                            {% else %}
+                            <span class="badge bg-warning d-flex align-items-center">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                                </svg>
+                                {{ i.sync_status }}
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        {% if i.sync_status != "Missing" %}
+                        <div class="mb-2 text-muted small">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                            </svg>
+                            {{ (i.item.size_kb / 1024) | round(precision=2) }} MB
+                        </div>
+                        {% endif %}
+                        <div class="d-flex gap-2">
+                            {% if i.ignored %}
+                            <button class="btn btn-success btn-sm d-flex align-items-center" disabled>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                </svg>
+                                Ignored
+                            </button>
+                            {% else %}
+                            <button class="btn btn-warning btn-sm d-flex align-items-center"
+                                    id="ignore-btn-{{ i.agent.name | replace(from=' ', to='-') | lower }}"
+                                    hx-post="/components/ignore"
+                                    hx-ext="json-enc"
+                                    hx-include="#ignore-btn-{{ i.agent.name | replace(from=' ', to='-') | lower }} input"
+                                    hx-confirm="Are you sure you want to ignore this item on {{ i.agent.name }}?"
+                                    hx-swap="none"
+                                    hx-on::after-request="
+                                        if(event.detail.xhr.status === 200) {
+                                            try {
+                                                const response = JSON.parse(event.detail.xhr.responseText);
+                                                if(response.success) {
+                                                    this.textContent = '✓ Ignored';
+                                                    this.disabled = true;
+                                                    this.classList.remove('btn-warning');
+                                                    this.classList.add('btn-success');
+                                                    showToast('Item ignored successfully', 'success');
+                                                    refreshItemData();
+                                                } else {
+                                                    showToast(response.message, 'error');
+                                                }
+                                            } catch (parseError) {
+                                                showToast('Failed to parse server response', 'error');
+                                            }
+                                        } else {
+                                            showToast('Request failed with status: ' + event.detail.xhr.status, 'error');
+                                        }">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                                    <path d="M12 2C17.52 2 22 6.48 22 12S17.52 22 12 22 2 17.52 2 12 6.48 2 12 2M15.54 9L14.46 7.88L12 10.34L9.54 7.88L8.46 9L10.92 11.46L8.46 13.92L9.54 15.04L12 12.58L14.46 15.04L15.54 13.92L13.08 11.46L15.54 9Z"/>
+                                </svg>
+                                Ignore
+                                <input type="hidden" name="agent_name" value="{{ i.agent.name }}">
+                                {% for path_item in item_path %}
+                                <input type="hidden" name="item_path" value="{{ path_item }}">
+                                {% endfor %}
+                            </button>
+                            {% endif %}
+                            {% if i.sync_status != "Missing" %}
+                            <button class="btn btn-danger btn-sm d-flex align-items-center"
+                                    id="delete-btn-{{ i.agent.name | replace(from=' ', to='-') | lower }}"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#deleteModal"
+                                    data-agent-name="{{ i.agent.name }}"
+                                    data-item-path="{{ item_path | join(sep=',') }}"
+                                    data-item-name="{{ parent_names | join(sep=' / ') }}"
+                                    onclick="setupDeleteModal(this)">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                                    <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+                                </svg>
+                                Delete
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
                 {% endfor %}
-            </button>
-            {% endif %}
-            {% if i.sync_status != "Missing" %}
-            <button class="btn btn-danger btn-sm px-3 ms-2"
-                    id="delete-btn-{{ i.agent.name | replace(from=' ', to='-') | lower }}"
-                    data-bs-toggle="modal"
-                    data-bs-target="#deleteModal"
-                    data-agent-name="{{ i.agent.name }}"
-                    data-item-path="{{ item_path | join(sep=',') }}"
-                    data-item-path="{{ item_path | join(sep=',') }}"
-                    data-item-name="{{ parent_names | join(sep=' / ') }}"
-                    onclick="setupDeleteModal(this)">
-                Delete
-            </button>
-            {% endif %}
+                {% if agent_items | length == 0 %}
+                <div class="col-12">
+                    <div class="p-2 text-center text-muted">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" class="mb-3 opacity-50">
+                            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                        </svg>
+                        <p class="mb-0">Select an item to view details</p>
+                    </div>
+                </div>
+                {% endif %}
+                </div>
+            </div>
         </div>
     </div>
-    {% endfor %}
-    {% if agent_items | length == 0 %}
-    {% endif %}
 </div>
 

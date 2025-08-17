@@ -1,6 +1,14 @@
 <div class="row">
     <div class="col">
-        <br>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 class="mb-0">File Browser</h2>
+            <div class="text-muted small">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                    <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+                </svg>
+                Browse and manage files across agents
+            </div>
+        </div>
     </div>
 </div>
 <div class="row" role="tabpanel">
@@ -9,7 +17,7 @@
             {% for i in items %}
             <a
                 id="parent-item-{{ i.safe_id }}"
-                class="d-flex justify-content-between align-items-center list-group-item list-group-item-action{% if i.has_insufficient_copies %} list-group-item-warning{% endif %}"
+                class="d-flex justify-content-between align-items-center list-group-item list-group-item-action fade-in{% if i.has_insufficient_copies %} list-group-item-warning{% endif %}"
                 data-bs-toggle="list"
                 href="#list-sub1-{{ i.safe_id }}"
                 role="tab"
@@ -18,7 +26,12 @@
                 hx-include="#parent-item-{{ i.safe_id }} input"
                 hx-target="#info-panel"
             >
-                {{ i.name }}
+                <div class="d-flex align-items-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-primary">
+                        <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+                    </svg>
+                    <span class="fw-medium">{{ i.name }}</span>
+                </div>
                 <span class="badge text-bg-primary rounded-pill">{{ i.items | length }}</span>
                 <input type="hidden" name="item_path" value="">
                 <input type="hidden" name="item_path" value="{{ i.id }}">
@@ -64,7 +77,7 @@
                     {% for j in i.items %}
                     <a
                             id="item-sub1-{{ i.safe_id }}-{{ j.safe_id }}"
-                            class="d-flex justify-content-between align-items-center list-group-item list-group-item-action{% if j.has_insufficient_copies %} list-group-item-warning{% endif %}"
+                            class="d-flex justify-content-between align-items-center list-group-item list-group-item-action fade-in{% if j.has_insufficient_copies %} list-group-item-warning{% endif %}"
                             data-bs-toggle="list"
                             href="#list-sub2-{{ j.safe_id }}"
                             role="tab"
@@ -73,7 +86,18 @@
                             hx-include="#item-sub1-{{ i.safe_id }}-{{ j.safe_id }} input"
                             hx-target="#info-panel"
                     >
-                        {{ j.name }}
+                        <div class="d-flex align-items-center">
+                            {% if j.leaf %}
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-secondary">
+                                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                            </svg>
+                            {% else %}
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-info">
+                                <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+                            </svg>
+                            {% endif %}
+                            <span>{{ j.name }}</span>
+                        </div>
                         <span class="badge text-bg-primary rounded-pill">{{ j.items | length }}</span>
                         <input type="hidden" name="item_path" value="">
                         <input type="hidden" name="item_path" value="{{ i.id }}">
@@ -113,7 +137,7 @@
                     {% for k in j.items %}
                     <a
                             id="item-sub2-{{ i.safe_id }}-{{ j.safe_id }}-{{ k.safe_id }}"
-                            class="d-flex justify-content-between align-items-center list-group-item list-group-item-action{% if k.copy_count < minimum_copies %} list-group-item-warning{% endif %}"
+                            class="d-flex justify-content-between align-items-center list-group-item list-group-item-action fade-in{% if k.copy_count < minimum_copies %} list-group-item-warning{% endif %}"
                             data-bs-toggle="list"
                             href="#"
                             role="tab"
@@ -122,7 +146,12 @@
                             hx-include="#item-sub2-{{ i.safe_id }}-{{ j.safe_id }}-{{ k.safe_id }} input"
                             hx-target="#info-panel"
                     >
-                        {{ k.name }}
+                        <div class="d-flex align-items-center">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-secondary">
+                                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                            </svg>
+                            <span>{{ k.name }}</span>
+                        </div>
                         <span class="badge text-bg-primary rounded-pill">{{ k.items | length }}</span>
                         <input type="hidden" name="item_path" value="">
                         <input type="hidden" name="item_path" value="{{ i.id }}">
