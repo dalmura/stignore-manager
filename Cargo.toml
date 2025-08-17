@@ -8,7 +8,7 @@ authors = ["Michael Robbins"]
 axum = { version = "0.7.7", features = ["macros"] }
 axum-template = { version = "2.4.0", features = ["tera"] }
 serde = { version = "1.0.214", features = ["derive"] }
-tokio = { version = "1.41.1", features = ["full"] }
+tokio = { version = "1.41.1", features = ["rt-multi-thread", "net", "macros"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing = "0.1.40"
 toml = "0.8.19"
