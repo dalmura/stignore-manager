@@ -22,8 +22,6 @@
                 <span class="badge text-bg-primary rounded-pill">{{ i.items | length }}</span>
                 <input type="hidden" name="item_path" value="">
                 <input type="hidden" name="item_path" value="{{ i.id }}">
-                <input type="hidden" name="hierarchy_names" value="">
-                <input type="hidden" name="hierarchy_names" value="{{ i.name }}">
             </a>
             {% endfor %}
         </div>
@@ -36,6 +34,10 @@
             triggerEl.addEventListener('click', event => {
                 event.preventDefault();
                 tabTrigger.show();
+
+                // Extract level1 ID from element ID (parent-item-xyz -> xyz)
+                const level1Id = triggerEl.id.replace('parent-item-', '');
+                updateUrlWithSelection(level1Id, null, null);
 
                 const sub1ListRows = document.querySelectorAll("#sub1List div.tab-pane a");
                 sub1ListRows.forEach(el => {
@@ -77,9 +79,6 @@
                         <input type="hidden" name="item_path" value="">
                         <input type="hidden" name="item_path" value="{{ i.id }}">
                         <input type="hidden" name="item_path" value="{{ j.id }}">
-                        <input type="hidden" name="hierarchy_names" value="">
-                        <input type="hidden" name="hierarchy_names" value="{{ i.name }}">
-                        <input type="hidden" name="hierarchy_names" value="{{ j.name }}">
                     </a>
                     {% endfor %}
                 </div>
@@ -95,6 +94,12 @@
             triggerEl.addEventListener('click', event => {
                 event.preventDefault();
                 tabTrigger.show();
+
+                // Extract level2 ID from element ID (item-sub1-xyz -> xyz)
+                const level2Id = triggerEl.id.replace('item-sub1-', '');
+                // Get current level1 from URL or active element
+                const selection = getSelectionFromUrl();
+                updateUrlWithSelection(selection.level1, level2Id, null);
 
                 const sub2ListRows = document.querySelectorAll("#sub2List div.tab-pane a");
                 sub2ListRows.forEach(el => {
@@ -127,10 +132,6 @@
                         <input type="hidden" name="item_path" value="{{ i.id }}">
                         <input type="hidden" name="item_path" value="{{ j.id }}">
                         <input type="hidden" name="item_path" value="{{ k.id }}">
-                        <input type="hidden" name="hierarchy_names" value="">
-                        <input type="hidden" name="hierarchy_names" value="{{ i.name }}">
-                        <input type="hidden" name="hierarchy_names" value="{{ j.name }}">
-                        <input type="hidden" name="hierarchy_names" value="{{ k.name }}">
                     </a>
                     {% endfor %}
                 </div>
@@ -140,3 +141,22 @@
         </div>
     </div>
 </div>
+
+<script>
+    // Add click handlers for level 3 items
+    document.addEventListener('DOMContentLoaded', function() {
+        const triggerSub2TabList = document.querySelectorAll('#sub2List a');
+        triggerSub2TabList.forEach(triggerEl => {
+            triggerEl.addEventListener('click', event => {
+                // Extract level3 ID from element ID (item-sub2-xyz -> xyz)
+                const level3Id = triggerEl.id.replace('item-sub2-', '');
+                // Get current levels from URL
+                const selection = getSelectionFromUrl();
+                updateUrlWithSelection(selection.level1, selection.level2, level3Id);
+            });
+        });
+
+        // Restore selection from URL after page loads
+        setTimeout(restoreSelectionFromUrl, 200);
+    });
+</script>

@@ -67,9 +67,6 @@
                 {% for path_item in item_path %}
                 <input type="hidden" name="item_path" value="{{ path_item }}">
                 {% endfor %}
-                {% for hierarchy_item in hierarchy_names %}
-                <input type="hidden" name="hierarchy_names" value="{{ hierarchy_item }}">
-                {% endfor %}
             </button>
             {% endif %}
             {% if i.sync_status != "Missing" %}
@@ -79,7 +76,7 @@
                     data-bs-target="#deleteModal"
                     data-agent-name="{{ i.agent.name }}"
                     data-item-path="{{ item_path | join(sep=',') }}"
-                    data-hierarchy-names="{{ hierarchy_names | join(sep=',') }}"
+                    data-item-path="{{ item_path | join(sep=',') }}"
                     data-item-name="{{ parent_names | join(sep=' / ') }}"
                     onclick="setupDeleteModal(this)">
                 Delete

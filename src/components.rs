@@ -112,7 +112,6 @@ async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
 
 #[derive(Deserialize, Debug)]
 struct InfoPanelRequest {
-    hierarchy_names: Vec<String>,
     item_path: Vec<String>,
 }
 
@@ -126,14 +125,12 @@ struct AgentModalQuery {
 struct IgnoreItemRequest {
     agent_name: String,
     item_path: Vec<String>,
-    hierarchy_names: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
 struct DeleteItemRequest {
     agent_name: String,
     item_path: Vec<String>,
-    hierarchy_names: Vec<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -237,33 +234,25 @@ fn collect_all_item_ids(item_group: &ItemGroup) -> HashSet<String> {
 async fn check_ignored_status_bulk(
     agent_items: &[(crate::config::Agent, ItemGroup)],
     item_path: &[String],
-    hierarchy_names: &[String],
 ) -> std::collections::HashMap<String, bool> {
     let mut results = std::collections::HashMap::new();
     let client = reqwest::Client::new();
 
-    // Filter out empty strings from item_path (same as ignore request)
+    // Filter out empty strings from item_path
     let filtered_item_path: Vec<String> = item_path
         .iter()
         .filter(|i| !i.is_empty())
         .cloned()
         .collect();
 
-    // Filter out empty strings from hierarchy_names (same as item_path filtering)
-    let filtered_hierarchy_names: Vec<String> = hierarchy_names
-        .iter()
-        .filter(|name| !name.is_empty())
-        .cloned()
-        .collect();
-
-    // Extract category_id (first non-empty item from item_path) and folder_path (from hierarchy_names)
+    // Extract category_id (first item) and folder_path (remaining items) from item_path
     let (category_id, folder_path) = if filtered_item_path.is_empty() {
         return results; // Return empty results if no valid path
     } else {
         let category_id = filtered_item_path[0].clone();
-        // Use hierarchy_names for folder path (skip the first one which is the category)
-        let folder_path = if filtered_hierarchy_names.len() > 1 {
-            filtered_hierarchy_names[1..].to_vec()
+        // Use remaining items from item_path for folder path (skip the first one which is the category)
+        let folder_path = if filtered_item_path.len() > 1 {
+            filtered_item_path[1..].to_vec()
         } else {
             vec![]
         };
@@ -320,7 +309,6 @@ async fn check_ignored_status_bulk(
 async fn calculate_sync_status(
     agent_items: &[(crate::config::Agent, ItemGroup)],
     item_path: &[String],
-    hierarchy_names: &[String],
 ) -> Vec<AgentItemWithStatus> {
     // Collect all unique item IDs from all agents (including nested items)
     let mut all_item_ids: HashSet<String> = HashSet::new();
@@ -329,8 +317,7 @@ async fn calculate_sync_status(
     }
 
     // Get ignore status for all agents in bulk
-    let ignore_status_results =
-        check_ignored_status_bulk(agent_items, item_path, hierarchy_names).await;
+    let ignore_status_results = check_ignored_status_bulk(agent_items, item_path).await;
 
     let mut result = Vec::new();
 
@@ -377,27 +364,32 @@ async fn infopanel(
         .map(AsRef::as_ref)
         .collect();
 
+    // Add debug logging
+    tracing::debug!("InfoPanel request - item_path: {:?}", &payload.item_path);
+
     match agents::item_info(state.config.agents, item_path).await {
         Ok(response) => {
-            let agent_items_with_status = calculate_sync_status(
-                &response.agent_items,
-                &payload.item_path,
-                &payload.hierarchy_names,
-            )
-            .await;
+            let agent_items_with_status =
+                calculate_sync_status(&response.agent_items, &payload.item_path).await;
+
+            // Filter out empty strings from item_path for display as parent names
+            let filtered_item_path: Vec<String> = payload
+                .item_path
+                .iter()
+                .filter(|name| !name.is_empty())
+                .cloned()
+                .collect();
 
             context.insert("item", &response.item);
             context.insert("agent_items", &agent_items_with_status);
-            context.insert("parent_names", &payload.hierarchy_names[1..]);
+            context.insert("parent_names", &filtered_item_path);
             context.insert("item_path", &payload.item_path);
-            context.insert("hierarchy_names", &payload.hierarchy_names);
         }
         Err(_) => {
             // Insert empty defaults to prevent template errors
             context.insert("agent_items", &Vec::<()>::new());
             context.insert("parent_names", &Vec::<String>::new());
             context.insert("item_path", &Vec::<String>::new());
-            context.insert("hierarchy_names", &Vec::<String>::new());
         }
     }
 
@@ -431,15 +423,9 @@ async fn agent_modal(
             // Calculate sync status for all agents first
             let item_path_vec: Vec<String> =
                 item_path_parts.iter().map(|s| s.to_string()).collect();
-            // For agent modal, we don't have hierarchy_names, so create empty vector
-            // The ignore status check might not work correctly here
-            let empty_hierarchy_names: Vec<String> = vec![];
-            let agent_items_with_status = calculate_sync_status(
-                &response.agent_items,
-                &item_path_vec,
-                &empty_hierarchy_names,
-            )
-            .await;
+            // Calculate sync status for agent modal
+            let agent_items_with_status =
+                calculate_sync_status(&response.agent_items, &item_path_vec).await;
 
             // Find the specific agent's data
             if let Some(agent_item_with_status) = agent_items_with_status
@@ -530,7 +516,7 @@ async fn ignore_item(
         }
     };
 
-    // Filter out empty strings from item_path (same as infopanel does)
+    // Filter out empty strings from item_path
     let filtered_item_path: Vec<String> = payload
         .item_path
         .iter()
@@ -538,15 +524,7 @@ async fn ignore_item(
         .cloned()
         .collect();
 
-    // Filter out empty strings from hierarchy_names (same as item_path filtering)
-    let filtered_hierarchy_names: Vec<String> = payload
-        .hierarchy_names
-        .iter()
-        .filter(|name| !name.is_empty())
-        .cloned()
-        .collect();
-
-    // Extract category_id (first non-empty item from item_path) and folder_path (from hierarchy_names)
+    // Extract category_id (first item) and folder_path (remaining items) from item_path
     let (category_id, folder_path) = if filtered_item_path.is_empty() {
         return Json(IgnoreItemResponse {
             success: false,
@@ -554,9 +532,9 @@ async fn ignore_item(
         });
     } else {
         let category_id = filtered_item_path[0].clone();
-        // Use hierarchy_names for folder path (skip the first one which is the category)
-        let folder_path = if filtered_hierarchy_names.len() > 1 {
-            filtered_hierarchy_names[1..].to_vec()
+        // Use remaining items from item_path for folder path (skip the first one which is the category)
+        let folder_path = if filtered_item_path.len() > 1 {
+            filtered_item_path[1..].to_vec()
         } else {
             vec![]
         };
@@ -631,7 +609,7 @@ async fn delete_item(
         }
     };
 
-    // Filter out empty strings from item_path (same as infopanel does)
+    // Filter out empty strings from item_path
     let filtered_item_path: Vec<String> = payload
         .item_path
         .iter()
@@ -639,15 +617,7 @@ async fn delete_item(
         .cloned()
         .collect();
 
-    // Filter out empty strings from hierarchy_names (same as item_path filtering)
-    let filtered_hierarchy_names: Vec<String> = payload
-        .hierarchy_names
-        .iter()
-        .filter(|name| !name.is_empty())
-        .cloned()
-        .collect();
-
-    // Extract category_id (first non-empty item from item_path) and folder_path (from hierarchy_names)
+    // Extract category_id (first item) and folder_path (remaining items) from item_path
     let (category_id, folder_path) = if filtered_item_path.is_empty() {
         return Json(DeleteItemResponse {
             success: false,
@@ -655,9 +625,9 @@ async fn delete_item(
         });
     } else {
         let category_id = filtered_item_path[0].clone();
-        // Use hierarchy_names for folder path (skip the first one which is the category)
-        let folder_path = if filtered_hierarchy_names.len() > 1 {
-            filtered_hierarchy_names[1..].to_vec()
+        // Use remaining items from item_path for folder path (skip the first one which is the category)
+        let folder_path = if filtered_item_path.len() > 1 {
+            filtered_item_path[1..].to_vec()
         } else {
             vec![]
         };

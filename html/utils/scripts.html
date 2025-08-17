@@ -50,7 +50,6 @@ function showToast(message, type = 'success') {
 function setupDeleteModal(button) {
     const agentName = button.getAttribute('data-agent-name');
     const itemPath = button.getAttribute('data-item-path').split(',');
-    const hierarchyNames = button.getAttribute('data-hierarchy-names').split(',');
     const itemName = button.getAttribute('data-item-name');
 
     // Set modal content
@@ -64,15 +63,14 @@ function setupDeleteModal(button) {
     // Store data for the actual delete operation
     const confirmBtn = document.getElementById('confirmDeleteBtn');
     confirmBtn.onclick = function() {
-        performDelete(agentName, itemPath, hierarchyNames);
+        performDelete(agentName, itemPath);
     };
 }
 
-function performDelete(agentName, itemPath, hierarchyNames) {
+function performDelete(agentName, itemPath) {
     const deleteData = {
         agent_name: agentName,
-        item_path: itemPath,
-        hierarchy_names: hierarchyNames
+        item_path: itemPath
     };
 
     fetch('/components/delete', {
@@ -112,5 +110,72 @@ function performDelete(agentName, itemPath, hierarchyNames) {
         showToast('Failed to connect to server. Please try again.', 'error');
         console.error('Delete request failed:', error);
     });
+}
+
+// URL State Management Functions
+function updateUrlWithSelection(level1, level2, level3) {
+    const url = new URL(window.location);
+
+    if (level1) {
+        url.searchParams.set('l1', level1);
+    } else {
+        url.searchParams.delete('l1');
+    }
+
+    if (level2) {
+        url.searchParams.set('l2', level2);
+    } else {
+        url.searchParams.delete('l2');
+    }
+
+    if (level3) {
+        url.searchParams.set('l3', level3);
+    } else {
+        url.searchParams.delete('l3');
+    }
+
+    window.history.replaceState({}, '', url);
+}
+
+function getSelectionFromUrl() {
+    const url = new URL(window.location);
+    return {
+        level1: url.searchParams.get('l1'),
+        level2: url.searchParams.get('l2'),
+        level3: url.searchParams.get('l3')
+    };
+}
+
+function restoreSelectionFromUrl() {
+    const selection = getSelectionFromUrl();
+
+    if (selection.level1) {
+        const level1Element = document.getElementById(`parent-item-${selection.level1}`);
+        if (level1Element) {
+            const tab1 = new bootstrap.Tab(level1Element);
+            tab1.show();
+            level1Element.click();
+
+            if (selection.level2) {
+                setTimeout(() => {
+                    const level2Element = document.getElementById(`item-sub1-${selection.level2}`);
+                    if (level2Element) {
+                        const tab2 = new bootstrap.Tab(level2Element);
+                        tab2.show();
+                        level2Element.click();
+
+                        if (selection.level3) {
+                            setTimeout(() => {
+                                const level3Element = document.getElementById(`item-sub2-${selection.level3}`);
+                                if (level3Element) {
+                                    level3Element.click();
+                                }
+                            }, 100);
+                        }
+                    }
+                }, 100);
+            }
+        }
+    }
 }
 </script>
