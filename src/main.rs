@@ -12,6 +12,8 @@ use axum::extract::FromRef;
 use axum::{Router, routing::get};
 use tracing_subscriber::fmt;
 
+use std::env;
+
 use tower_http::services::{ServeDir, ServeFile};
 
 type AppEngine = Engine<Tera>;
@@ -29,8 +31,14 @@ async fn main() {
     /* initialize tracing */
     fmt::init();
 
+    /* load config */
+    let args: Vec<String> = env::args().collect();
+    let config_filename = &args[1];
+
+    let data = config::load_config(config_filename);
+
+    /* setup templates and context */
     let tera = Tera::new("html/**/*.html").unwrap();
-    let data = config::load_config("./config.toml");
     let mut context = Context::new();
     context.insert("title", "stignore-manager");
     context.insert("copyright", "© 2024 Dalmura");
