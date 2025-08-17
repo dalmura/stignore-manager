@@ -35,9 +35,8 @@
                 event.preventDefault();
                 tabTrigger.show();
 
-                // Extract level1 ID from element ID (parent-item-xyz -> xyz)
-                const level1Id = triggerEl.id.replace('parent-item-', '');
-                updateUrlWithSelection(level1Id, null, null);
+                // Update URL with selected element ID
+                updateUrlWithSelection(triggerEl.id);
 
                 const sub1ListRows = document.querySelectorAll("#sub1List div.tab-pane a");
                 sub1ListRows.forEach(el => {
@@ -64,14 +63,14 @@
                 <div class="list-group" id="list-sub1-tabs-{{ i.safe_id }}" role="tablist">
                     {% for j in i.items %}
                     <a
-                            id="item-sub1-{{ j.safe_id }}"
+                            id="item-sub1-{{ i.safe_id }}-{{ j.safe_id }}"
                             class="d-flex justify-content-between align-items-center list-group-item list-group-item-action{% if j.has_insufficient_copies %} list-group-item-warning{% endif %}"
                             data-bs-toggle="list"
                             href="#list-sub2-{{ j.safe_id }}"
                             role="tab"
                             hx-post="/components/infopanel.html"
                             hx-ext="json-enc"
-                            hx-include="#item-sub1-{{ j.safe_id }} input"
+                            hx-include="#item-sub1-{{ i.safe_id }}-{{ j.safe_id }} input"
                             hx-target="#info-panel"
                     >
                         {{ j.name }}
@@ -95,11 +94,8 @@
                 event.preventDefault();
                 tabTrigger.show();
 
-                // Extract level2 ID from element ID (item-sub1-xyz -> xyz)
-                const level2Id = triggerEl.id.replace('item-sub1-', '');
-                // Get current level1 from URL or active element
-                const selection = getSelectionFromUrl();
-                updateUrlWithSelection(selection.level1, level2Id, null);
+                // Update URL with selected element ID
+                updateUrlWithSelection(triggerEl.id);
 
                 const sub2ListRows = document.querySelectorAll("#sub2List div.tab-pane a");
                 sub2ListRows.forEach(el => {
@@ -116,14 +112,14 @@
                 <div class="list-group" id="list-sub2-tabs-{{ j.safe_id }}" role="tablist">
                     {% for k in j.items %}
                     <a
-                            id="item-sub2-{{ k.safe_id }}"
+                            id="item-sub2-{{ i.safe_id }}-{{ j.safe_id }}-{{ k.safe_id }}"
                             class="d-flex justify-content-between align-items-center list-group-item list-group-item-action{% if k.copy_count < minimum_copies %} list-group-item-warning{% endif %}"
                             data-bs-toggle="list"
                             href="#"
                             role="tab"
                             hx-post="/components/infopanel.html"
                             hx-ext="json-enc"
-                            hx-include="#item-sub2-{{ k.safe_id }} input"
+                            hx-include="#item-sub2-{{ i.safe_id }}-{{ j.safe_id }}-{{ k.safe_id }} input"
                             hx-target="#info-panel"
                     >
                         {{ k.name }}
@@ -148,11 +144,8 @@
         const triggerSub2TabList = document.querySelectorAll('#sub2List a');
         triggerSub2TabList.forEach(triggerEl => {
             triggerEl.addEventListener('click', event => {
-                // Extract level3 ID from element ID (item-sub2-xyz -> xyz)
-                const level3Id = triggerEl.id.replace('item-sub2-', '');
-                // Get current levels from URL
-                const selection = getSelectionFromUrl();
-                updateUrlWithSelection(selection.level1, selection.level2, level3Id);
+                // Update URL with selected element ID
+                updateUrlWithSelection(triggerEl.id);
             });
         });
 

@@ -113,25 +113,13 @@ function performDelete(agentName, itemPath) {
 }
 
 // URL State Management Functions
-function updateUrlWithSelection(level1, level2, level3) {
+function updateUrlWithSelection(selectedId) {
     const url = new URL(window.location);
 
-    if (level1) {
-        url.searchParams.set('l1', level1);
+    if (selectedId) {
+        url.searchParams.set('selected', selectedId);
     } else {
-        url.searchParams.delete('l1');
-    }
-
-    if (level2) {
-        url.searchParams.set('l2', level2);
-    } else {
-        url.searchParams.delete('l2');
-    }
-
-    if (level3) {
-        url.searchParams.set('l3', level3);
-    } else {
-        url.searchParams.delete('l3');
+        url.searchParams.delete('selected');
     }
 
     window.history.replaceState({}, '', url);
@@ -139,42 +127,19 @@ function updateUrlWithSelection(level1, level2, level3) {
 
 function getSelectionFromUrl() {
     const url = new URL(window.location);
-    return {
-        level1: url.searchParams.get('l1'),
-        level2: url.searchParams.get('l2'),
-        level3: url.searchParams.get('l3')
-    };
+    return url.searchParams.get('selected');
 }
 
 function restoreSelectionFromUrl() {
-    const selection = getSelectionFromUrl();
+    const selectedId = getSelectionFromUrl();
 
-    if (selection.level1) {
-        const level1Element = document.getElementById(`parent-item-${selection.level1}`);
-        if (level1Element) {
-            const tab1 = new bootstrap.Tab(level1Element);
-            tab1.show();
-            level1Element.click();
-
-            if (selection.level2) {
-                setTimeout(() => {
-                    const level2Element = document.getElementById(`item-sub1-${selection.level2}`);
-                    if (level2Element) {
-                        const tab2 = new bootstrap.Tab(level2Element);
-                        tab2.show();
-                        level2Element.click();
-
-                        if (selection.level3) {
-                            setTimeout(() => {
-                                const level3Element = document.getElementById(`item-sub2-${selection.level3}`);
-                                if (level3Element) {
-                                    level3Element.click();
-                                }
-                            }, 100);
-                        }
-                    }
-                }, 100);
-            }
+    if (selectedId) {
+        const selectedElement = document.getElementById(selectedId);
+        if (selectedElement) {
+            // For Bootstrap tabs, we need to show the tab and trigger click
+            const tab = new bootstrap.Tab(selectedElement);
+            tab.show();
+            selectedElement.click();
         }
     }
 }
