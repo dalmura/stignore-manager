@@ -1,5 +1,5 @@
 use crate::config::Agent;
-use crate::types::ItemGroup;
+use crate::types::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -10,20 +10,6 @@ fn set_copy_count_recursive(item: &mut ItemGroup, count: u8) {
     }
 }
 
-fn agent_endpoint(agent: &Agent, endpoint: &str, secure: bool) -> String {
-    let base = match secure {
-        true => "https",
-        false => "http",
-    };
-
-    format!("{base}://{hostname}/{endpoint}", hostname = agent.hostname)
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentCategoryListingResponse {
-    pub items: Vec<ItemGroup>,
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct CategoryListingResponse {
     pub items: Vec<ItemGroup>,
@@ -31,21 +17,14 @@ pub(crate) struct CategoryListingResponse {
 }
 
 pub async fn list_categories(
+    agent_client: &crate::agent_client::AgentClient,
     agents: Vec<Agent>,
-) -> Result<CategoryListingResponse, reqwest::Error> {
+) -> Result<CategoryListingResponse, crate::agent_client::AgentError> {
     let mut agent_responses: Vec<AgentCategoryListingResponse> = vec![];
     let mut consolidated: HashMap<String, ItemGroup> = HashMap::new();
 
     for agent in agents {
-        let url = agent_endpoint(&agent, "api/v1/categories", false);
-        let client = reqwest::Client::new();
-        let resp = client
-            .get(&url)
-            .header("X-API-Key", &agent.api_key)
-            .send()
-            .await?
-            .json::<AgentCategoryListingResponse>()
-            .await?;
+        let resp = agent_client.get_categories(&agent).await?;
 
         agent_responses.push(resp.clone());
 
@@ -75,25 +54,16 @@ pub async fn list_categories(
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentItemInfoRequest {
-    pub item_path: Vec<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentItemInfoResponse {
-    pub item: ItemGroup,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct ItemInfoResponse {
     pub item: ItemGroup,
     pub agent_items: Vec<(Agent, ItemGroup)>,
 }
 
 pub async fn item_info(
+    agent_client: &crate::agent_client::AgentClient,
     agents: Vec<Agent>,
     item_path: Vec<&str>,
-) -> Result<ItemInfoResponse, reqwest::Error> {
+) -> Result<ItemInfoResponse, crate::agent_client::AgentError> {
     let mut agent_responses: Vec<(Agent, ItemGroup)> = vec![];
     let mut consolidated: ItemGroup = ItemGroup {
         id: "".to_string(),
@@ -107,51 +77,32 @@ pub async fn item_info(
     let owned_path: Vec<String> = item_path.iter().map(|v| v.to_string()).collect();
 
     for agent in agents {
-        let client = reqwest::Client::new();
-        let url = agent_endpoint(&agent, "api/v1/items", false);
         let body = AgentItemInfoRequest {
             item_path: owned_path.clone(),
         };
 
-        let response = client
-            .post(&url)
-            .header("X-API-Key", &agent.api_key)
-            .json(&body)
-            .send()
-            .await?;
-
-        let status = response.status();
-
-        // Handle 404 responses by creating an empty response
-        if status == reqwest::StatusCode::NOT_FOUND {
-            let empty_item = ItemGroup {
-                id: "".to_string(),
-                name: "".to_string(),
-                size_kb: 0,
-                items: vec![],
-                leaf: false,
-                copy_count: 0,
-            };
-            let resp = AgentItemInfoResponse { item: empty_item };
-            agent_responses.push((agent, resp.item.clone()));
-            consolidated = resp.item.clone() + consolidated;
-            continue;
-        }
-
-        let resp_result = response.json::<AgentItemInfoResponse>().await;
-
-        let resp = match resp_result {
-            Ok(parsed) => parsed,
-            Err(e) => {
-                return Err(e);
+        match agent_client.get_item_info(&agent, &body).await {
+            Ok(resp) => {
+                agent_responses.push((agent, resp.item.clone()));
+                let mut item_with_count = resp.item.clone();
+                let count = if item_with_count.id.is_empty() { 0 } else { 1 };
+                set_copy_count_recursive(&mut item_with_count, count);
+                consolidated = item_with_count + consolidated;
             }
-        };
-
-        agent_responses.push((agent, resp.item.clone()));
-        let mut item_with_count = resp.item.clone();
-        let count = if item_with_count.id.is_empty() { 0 } else { 1 };
-        set_copy_count_recursive(&mut item_with_count, count);
-        consolidated = item_with_count + consolidated;
+            Err(_) => {
+                // Handle error by creating an empty response (similar to 404 handling)
+                let empty_item = ItemGroup {
+                    id: "".to_string(),
+                    name: "".to_string(),
+                    size_kb: 0,
+                    items: vec![],
+                    leaf: false,
+                    copy_count: 0,
+                };
+                agent_responses.push((agent, empty_item.clone()));
+                consolidated = empty_item + consolidated;
+            }
+        }
     }
 
     Ok(ItemInfoResponse {

@@ -107,3 +107,64 @@ impl Add for ItemGroup {
         }
     }
 }
+
+// Agent API types
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentCategoryListingResponse {
+    pub items: Vec<ItemGroup>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentItemInfoRequest {
+    pub item_path: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentItemInfoResponse {
+    pub item: ItemGroup,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentIgnoreRequest {
+    pub category_id: String,
+    pub folder_path: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentIgnoreResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentDeleteRequest {
+    pub category_id: String,
+    pub folder_path: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentDeleteResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentIgnoreStatusRequest {
+    pub category_id: String,
+    pub folder_path: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentIgnoreStatusResponse {
+    pub ignored: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentBulkIgnoreStatusRequest {
+    pub items: Vec<AgentIgnoreStatusRequest>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct AgentBulkIgnoreStatusResponse {
+    pub items: Vec<AgentIgnoreStatusResponse>,
+}

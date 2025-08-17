@@ -39,7 +39,7 @@ pub async fn agents_overview(State(state): State<AppState>) -> impl IntoResponse
     context.insert("page_title", "Agents Overview");
 
     // Get categories first, then collect per-agent totals
-    match agents::list_categories(state.config.agents.clone()).await {
+    match agents::list_categories(&state.agent_client, state.config.agents.clone()).await {
         Ok(category_response) => {
             let mut agent_summaries = Vec::new();
 
@@ -58,6 +58,7 @@ pub async fn agents_overview(State(state): State<AppState>) -> impl IntoResponse
                 // Query each category for this agent
                 for category_name in &categories {
                     match agents::item_info(
+                        &state.agent_client,
                         state.config.agents.clone(),
                         vec![category_name.as_str()],
                     )

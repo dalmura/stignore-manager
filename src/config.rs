@@ -54,7 +54,7 @@ mod tests {
                 [manager]
                 port = 8000
                 minimum_copies = 2
-                
+
                 [[agents]]
                 name = "Agent 1"
                 hostname = "localhost:3000"

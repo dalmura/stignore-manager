@@ -1,3 +1,4 @@
+mod agent_client;
 mod agents;
 mod components;
 mod config;
@@ -20,6 +21,7 @@ pub struct AppState {
     engine: AppEngine,
     context: Context,
     config: config::Data,
+    agent_client: agent_client::AgentClient,
 }
 
 #[tokio::main]
@@ -44,6 +46,7 @@ async fn main() {
             engine: Engine::from(tera),
             context,
             config: data.clone(),
+            agent_client: agent_client::AgentClient::new(),
         });
 
     /* bind to the port and listen */

@@ -6,7 +6,7 @@ use axum::{
 };
 
 use crate::agents;
-use crate::types::ItemGroup;
+use crate::types::*;
 use axum_template::{Key, RenderHtml};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -82,7 +82,7 @@ fn convert_item_with_flags(item: &ItemGroup, minimum_copies: u8) -> ItemGroupWit
 async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
     let mut context = state.context.clone();
 
-    match agents::list_categories(state.config.agents).await {
+    match agents::list_categories(&state.agent_client, state.config.agents).await {
         Ok(response) => {
             let mut sorted_items = response.items;
             sorted_items.sort_by(|a, b| a.name.cmp(&b.name));
@@ -146,59 +146,6 @@ struct DeleteItemResponse {
 }
 
 #[derive(Serialize, Debug)]
-struct AgentIgnoreRequest {
-    category_id: String,
-    folder_path: Vec<String>,
-}
-
-#[derive(Serialize, Debug)]
-struct AgentDeleteRequest {
-    category_id: String,
-    folder_path: Vec<String>,
-}
-
-#[derive(Deserialize, Debug)]
-struct AgentIgnoreResponse {
-    success: bool,
-    message: String,
-    #[allow(dead_code)]
-    ignored_path: Option<String>,
-}
-
-#[derive(Deserialize, Debug)]
-struct AgentDeleteResponse {
-    success: bool,
-    message: String,
-    #[allow(dead_code)]
-    deleted_path: Option<String>,
-}
-
-#[derive(Serialize, Debug)]
-struct AgentIgnoreStatusRequest {
-    category_id: String,
-    folder_path: Vec<String>,
-}
-
-#[derive(Serialize, Debug)]
-struct AgentBulkIgnoreStatusRequest {
-    items: Vec<AgentIgnoreStatusRequest>,
-}
-
-#[derive(Deserialize, Debug)]
-struct AgentBulkIgnoreStatusItem {
-    #[allow(dead_code)]
-    category_id: String,
-    #[allow(dead_code)]
-    folder_path: Vec<String>,
-    ignored: bool,
-}
-
-#[derive(Deserialize, Debug)]
-struct AgentBulkIgnoreStatusResponse {
-    items: Vec<AgentBulkIgnoreStatusItem>,
-}
-
-#[derive(Serialize, Debug)]
 struct AgentItemWithStatus {
     agent: crate::config::Agent,
     item: ItemGroup,
@@ -232,11 +179,11 @@ fn collect_all_item_ids(item_group: &ItemGroup) -> HashSet<String> {
 }
 
 async fn check_ignored_status_bulk(
+    agent_client: &crate::agent_client::AgentClient,
     agent_items: &[(crate::config::Agent, ItemGroup)],
     item_path: &[String],
 ) -> std::collections::HashMap<String, bool> {
     let mut results = std::collections::HashMap::new();
-    let client = reqwest::Client::new();
 
     // Filter out empty strings from item_path
     let filtered_item_path: Vec<String> = item_path
@@ -262,8 +209,6 @@ async fn check_ignored_status_bulk(
 
     // Create one bulk request per agent
     for (agent, _) in agent_items {
-        let url = format!("http://{}/api/v1/ignore-status-bulk", agent.hostname);
-
         let bulk_request = AgentBulkIgnoreStatusRequest {
             items: vec![AgentIgnoreStatusRequest {
                 category_id: category_id.clone(),
@@ -271,29 +216,14 @@ async fn check_ignored_status_bulk(
             }],
         };
 
-        match client
-            .post(&url)
-            .header("Content-Type", "application/json")
-            .header("X-API-Key", &agent.api_key)
-            .json(&bulk_request)
-            .send()
+        match agent_client
+            .check_ignore_status_bulk(agent, &bulk_request)
             .await
         {
-            Ok(response) => {
-                if response.status().is_success() {
-                    match response.json::<AgentBulkIgnoreStatusResponse>().await {
-                        Ok(bulk_response) => {
-                            // For this simple case, we only sent one item so take the first result
-                            if let Some(first_result) = bulk_response.items.first() {
-                                results.insert(agent.name.clone(), first_result.ignored);
-                            } else {
-                                results.insert(agent.name.clone(), false);
-                            }
-                        }
-                        Err(_) => {
-                            results.insert(agent.name.clone(), false);
-                        }
-                    }
+            Ok(bulk_response) => {
+                // For this simple case, we only sent one item so take the first result
+                if let Some(first_result) = bulk_response.items.first() {
+                    results.insert(agent.name.clone(), first_result.ignored);
                 } else {
                     results.insert(agent.name.clone(), false);
                 }
@@ -308,6 +238,7 @@ async fn check_ignored_status_bulk(
 }
 
 async fn calculate_sync_status(
+    agent_client: &crate::agent_client::AgentClient,
     agent_items: &[(crate::config::Agent, ItemGroup)],
     item_path: &[String],
 ) -> Vec<AgentItemWithStatus> {
@@ -318,7 +249,8 @@ async fn calculate_sync_status(
     }
 
     // Get ignore status for all agents in bulk
-    let ignore_status_results = check_ignored_status_bulk(agent_items, item_path).await;
+    let ignore_status_results =
+        check_ignored_status_bulk(agent_client, agent_items, item_path).await;
 
     let mut result = Vec::new();
 
@@ -365,13 +297,14 @@ async fn infopanel(
         .map(AsRef::as_ref)
         .collect();
 
-    // Add debug logging
-    tracing::debug!("InfoPanel request - item_path: {:?}", &payload.item_path);
-
-    match agents::item_info(state.config.agents, item_path).await {
+    match agents::item_info(&state.agent_client, state.config.agents, item_path).await {
         Ok(response) => {
-            let agent_items_with_status =
-                calculate_sync_status(&response.agent_items, &payload.item_path).await;
+            let agent_items_with_status = calculate_sync_status(
+                &state.agent_client,
+                &response.agent_items,
+                &payload.item_path,
+            )
+            .await;
 
             // Filter out empty strings from item_path for display as parent names
             let filtered_item_path: Vec<String> = payload
@@ -419,14 +352,21 @@ async fn agent_modal(
         parts
     };
 
-    match agents::item_info(state.config.agents, item_path_parts.clone()).await {
+    match agents::item_info(
+        &state.agent_client,
+        state.config.agents,
+        item_path_parts.clone(),
+    )
+    .await
+    {
         Ok(response) => {
             // Calculate sync status for all agents first
             let item_path_vec: Vec<String> =
                 item_path_parts.iter().map(|s| s.to_string()).collect();
             // Calculate sync status for agent modal
             let agent_items_with_status =
-                calculate_sync_status(&response.agent_items, &item_path_vec).await;
+                calculate_sync_status(&state.agent_client, &response.agent_items, &item_path_vec)
+                    .await;
 
             // Find the specific agent's data
             if let Some(agent_item_with_status) = agent_items_with_status
@@ -550,43 +490,14 @@ async fn ignore_item(
     };
 
     // Send the ignore request to the agent
-    let client = reqwest::Client::new();
-    let url = format!("http://{}/api/v1/ignore", agent.hostname);
-
-    match client
-        .post(&url)
-        .header("Content-Type", "application/json")
-        .header("X-API-Key", &agent.api_key)
-        .json(&ignore_request)
-        .send()
-        .await
-    {
-        Ok(response) => {
-            let status = response.status();
-
-            match response.json::<AgentIgnoreResponse>().await {
-                Ok(agent_response) => {
-                    if status.is_success() && agent_response.success {
-                        Json(IgnoreItemResponse {
-                            success: true,
-                            message: format!("Successfully ignored item on {}", agent.name),
-                        })
-                    } else {
-                        Json(IgnoreItemResponse {
-                            success: false,
-                            message: format!("Agent error: {}", agent_response.message),
-                        })
-                    }
-                }
-                Err(parse_error) => Json(IgnoreItemResponse {
-                    success: false,
-                    message: format!("Failed to parse agent response: {}", parse_error),
-                }),
-            }
-        }
+    match state.agent_client.ignore_item(agent, &ignore_request).await {
+        Ok(_) => Json(IgnoreItemResponse {
+            success: true,
+            message: format!("Successfully ignored item on {}", agent.name),
+        }),
         Err(e) => Json(IgnoreItemResponse {
             success: false,
-            message: format!("Failed to connect to agent: {}", e),
+            message: format!("Failed to ignore item: {}", e),
         }),
     }
 }
@@ -644,42 +555,14 @@ async fn delete_item(
     };
 
     // Send the delete request to the agent
-    let client = reqwest::Client::new();
-    let url = format!("http://{}/api/v1/delete", agent.hostname);
-
-    match client
-        .post(&url)
-        .header("Content-Type", "application/json")
-        .json(&delete_request)
-        .send()
-        .await
-    {
-        Ok(response) => {
-            let status = response.status();
-
-            match response.json::<AgentDeleteResponse>().await {
-                Ok(agent_response) => {
-                    if status.is_success() && agent_response.success {
-                        Json(DeleteItemResponse {
-                            success: true,
-                            message: format!("Successfully deleted item on {}", agent.name),
-                        })
-                    } else {
-                        Json(DeleteItemResponse {
-                            success: false,
-                            message: format!("Agent error: {}", agent_response.message),
-                        })
-                    }
-                }
-                Err(parse_error) => Json(DeleteItemResponse {
-                    success: false,
-                    message: format!("Failed to parse agent response: {}", parse_error),
-                }),
-            }
-        }
+    match state.agent_client.delete_item(agent, &delete_request).await {
+        Ok(_) => Json(DeleteItemResponse {
+            success: true,
+            message: format!("Successfully deleted item on {}", agent.name),
+        }),
         Err(e) => Json(DeleteItemResponse {
             success: false,
-            message: format!("Failed to connect to agent: {}", e),
+            message: format!("Failed to delete item: {}", e),
         }),
     }
 }

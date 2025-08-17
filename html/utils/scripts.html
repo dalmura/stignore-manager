@@ -134,6 +134,8 @@ function restoreSelectionFromUrl() {
     const selectedId = getSelectionFromUrl();
 
     if (selectedId) {
+        let selectionFound = false;
+
         if (selectedId.startsWith('parent-item-')) {
             // Level 1 selection
             const selectedElement = document.getElementById(selectedId);
@@ -141,6 +143,7 @@ function restoreSelectionFromUrl() {
                 const tab = new bootstrap.Tab(selectedElement);
                 tab.show();
                 selectedElement.click();
+                selectionFound = true;
             }
         } else if (selectedId.startsWith('item-sub1-')) {
             // Level 2 selection - need to activate parent first
@@ -160,8 +163,16 @@ function restoreSelectionFromUrl() {
                         const tab = new bootstrap.Tab(selectedElement);
                         tab.show();
                         selectedElement.click();
+                        selectionFound = true;
+                    } else {
+                        showToast('Selected item no longer exists', 'error');
+                        // Fall back to parent selection
+                        updateUrlWithSelection(parentId);
                     }
                 }, 100);
+            } else {
+                showToast('Selected item no longer exists', 'error');
+                clearUrlSelection();
             }
         } else if (selectedId.startsWith('item-sub2-')) {
             // Level 3 selection - need to activate parent and grandparent first
@@ -190,12 +201,44 @@ function restoreSelectionFromUrl() {
                                 const tab = new bootstrap.Tab(selectedElement);
                                 tab.show();
                                 selectedElement.click();
+                                selectionFound = true;
+                            } else {
+                                showToast('Selected item no longer exists', 'error');
+                                // Fall back to parent selection
+                                updateUrlWithSelection(parentId);
                             }
                         }, 100);
+                    } else {
+                        showToast('Selected item no longer exists', 'error');
+                        // Fall back to grandparent selection
+                        updateUrlWithSelection(grandparentId);
                     }
                 }, 100);
+            } else {
+                showToast('Selected item no longer exists', 'error');
+                clearUrlSelection();
             }
+        } else {
+            // Unknown selection format
+            showToast('Invalid selection in URL', 'error');
+            clearUrlSelection();
+        }
+
+        // For level 1 items, check if selection was found after a short delay to account for dynamic loading
+        if (selectedId.startsWith('parent-item-') && !selectionFound) {
+            setTimeout(() => {
+                if (!document.getElementById(selectedId)) {
+                    showToast('Selected item no longer exists', 'error');
+                    clearUrlSelection();
+                }
+            }, 200);
         }
     }
+}
+
+function clearUrlSelection() {
+    const url = new URL(window.location);
+    url.searchParams.delete('selected');
+    window.history.replaceState({}, '', url);
 }
 </script>
