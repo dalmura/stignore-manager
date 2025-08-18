@@ -14,6 +14,7 @@ use tracing_subscriber::fmt;
 
 use std::env;
 
+use tokio::signal;
 use tower_http::services::{ServeDir, ServeFile};
 
 type AppEngine = Engine<Tera>;
@@ -63,6 +64,35 @@ async fn main() {
     tracing::info!("listening on {}", &addr);
 
     axum::serve(listener, app.into_make_service())
+        .with_graceful_shutdown(shutdown_signal())
         .await
         .unwrap();
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::info!("received Ctrl+C, shutting down gracefully...");
+        },
+        _ = terminate => {
+            tracing::info!("received SIGTERM, shutting down gracefully...");
+        },
+    }
 }

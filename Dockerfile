@@ -14,6 +14,8 @@ FROM gcr.io/distroless/cc-debian12
 WORKDIR /app
 
 COPY --from=builder /app/target/release/stignore-manager /stignore-manager
+COPY html/ /app/html/
+COPY assets/ /app/assets/
 
 ENTRYPOINT ["/stignore-manager"]
 CMD ["/app/config.toml"]
