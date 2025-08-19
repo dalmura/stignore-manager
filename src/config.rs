@@ -13,6 +13,12 @@ pub struct Data {
 pub struct ManagerConfig {
     pub port: u16,
     pub minimum_copies: u8,
+    #[serde(default = "default_agent_timeout_seconds")]
+    pub agent_timeout_seconds: u64,
+}
+
+fn default_agent_timeout_seconds() -> u64 {
+    5
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -62,6 +68,30 @@ mod tests {
             "#,
         );
         assert!(data.is_ok());
+        let config = data.unwrap();
+        // Test default timeout is applied when not specified
+        assert_eq!(config.manager.agent_timeout_seconds, 5);
+    }
+
+    #[test]
+    fn serde_config_with_custom_timeout() {
+        let data: Result<Data, toml::de::Error> = toml::from_str(
+            r#"
+                [manager]
+                port = 8000
+                minimum_copies = 2
+                agent_timeout_seconds = 10
+
+                [[agents]]
+                name = "Agent 1"
+                hostname = "localhost:3000"
+                api_key = "550e8400-e29b-41d4-a716-446655440000"
+            "#,
+        );
+        assert!(data.is_ok());
+        let config = data.unwrap();
+        // Test custom timeout is applied
+        assert_eq!(config.manager.agent_timeout_seconds, 10);
     }
 
     #[test]

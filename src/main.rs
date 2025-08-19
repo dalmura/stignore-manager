@@ -55,7 +55,9 @@ async fn main() {
             engine: Engine::from(tera),
             context,
             config: data.clone(),
-            agent_client: agent_client::AgentClient::new(),
+            agent_client: agent_client::AgentClient::with_timeout(
+                data.manager.agent_timeout_seconds,
+            ),
         });
 
     /* bind to the port and listen */

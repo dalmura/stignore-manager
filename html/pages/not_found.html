@@ -1,12 +1,56 @@
-<!DOCTYPE html>
-<html lang="en-AU">
-    {% include "utils/head.html" %}
-    <body>
-        {% include "utils/header.html" %}
-        <h1 class="title">{{ page_title }}</h1>
-        <p class="subtitle">{{ message }}</p>
-        <a class="button" href="/">Index</a>
-        {% include "utils/footer.html" %}
-        {% include "utils/scripts.html" %}
-    </body>
+{% include "utils/head.html" %}
+
+<body>
+{% include "components/navbar.html" %}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col">
+            <div class="mt-5 text-center">
+                <div class="mb-4">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor" class="text-muted">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" opacity="0.3"/>
+                    </svg>
+                </div>
+                <h1 class="display-1 fw-bold text-muted">404</h1>
+                <h2 class="mb-3">{{ page_title }}</h2>
+                <p class="fs-5 text-muted mb-4">{{ message }}</p>
+                <div class="d-flex justify-content-center gap-3">
+                    <a href="/" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                        </svg>
+                        Go Home
+                    </a>
+                    <a href="/agents" class="btn btn-outline-secondary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                        </svg>
+                        View Agents
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-5">
+        <div class="col-md-6 offset-md-3">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <h5 class="card-title">Need Help?</h5>
+                    <p class="card-text text-muted">
+                        The page you're looking for might have been moved, deleted, or doesn't exist.
+                        Try navigating using the links above or check the URL for typos.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include "utils/footer.html" %}
+{% include "utils/scripts.html" %}
+
+</body>
 </html>

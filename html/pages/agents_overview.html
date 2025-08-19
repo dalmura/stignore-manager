@@ -39,6 +39,12 @@
                             <td>
                                 {% if agent.status == "Active" %}
                                     <span class="badge bg-success">{{ agent.status }}</span>
+                                {% elif agent.status == "Timeout" %}
+                                    <span class="badge bg-warning text-dark" title="{{ agent.status_message }}">{{ agent.status }}</span>
+                                {% elif agent.status == "Unreachable" %}
+                                    <span class="badge bg-danger" title="{{ agent.status_message }}">{{ agent.status }}</span>
+                                {% elif agent.status == "Error" %}
+                                    <span class="badge bg-danger" title="{{ agent.status_message }}">{{ agent.status }}</span>
                                 {% else %}
                                     <span class="badge bg-secondary">{{ agent.status }}</span>
                                 {% endif %}

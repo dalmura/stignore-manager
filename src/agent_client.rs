@@ -1,5 +1,6 @@
 use reqwest::{Client, Method};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 use crate::config::Agent;
 use crate::types::*;
@@ -7,6 +8,7 @@ use crate::types::*;
 #[derive(Debug)]
 pub enum AgentError {
     RequestFailed(reqwest::Error),
+    Timeout(reqwest::Error),
     InvalidResponse(String),
     OperationFailed(String),
 }
@@ -15,6 +17,7 @@ impl std::fmt::Display for AgentError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AgentError::RequestFailed(e) => write!(f, "Request failed: {}", e),
+            AgentError::Timeout(e) => write!(f, "Request timed out: {}", e),
             AgentError::InvalidResponse(msg) => write!(f, "Invalid response: {}", msg),
             AgentError::OperationFailed(msg) => write!(f, "Operation failed: {}", msg),
         }
@@ -30,8 +33,15 @@ pub struct AgentClient {
 
 impl AgentClient {
     pub fn new() -> Self {
+        Self::with_timeout(5)
+    }
+
+    pub fn with_timeout(timeout_seconds: u64) -> Self {
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(Duration::from_secs(timeout_seconds))
+                .build()
+                .expect("Failed to build HTTP client"),
         }
     }
 
@@ -48,6 +58,7 @@ impl AgentClient {
         R: for<'de> Deserialize<'de>,
     {
         let url = format!("http://{}/api/v1/{}", agent.hostname, endpoint);
+        tracing::debug!("Making {} request to agent '{}' at URL: {}", method, agent.name, url);
 
         let mut request = self
             .client
@@ -58,22 +69,47 @@ impl AgentClient {
             request = request
                 .header("Content-Type", "application/json")
                 .json(body);
+            tracing::debug!("Request to agent '{}' includes JSON body", agent.name);
         }
 
-        let response = request.send().await.map_err(AgentError::RequestFailed)?;
+        tracing::debug!("Sending request to agent '{}' (timeout configured)", agent.name);
+        let response = request.send().await.map_err(|e| {
+            if e.is_timeout() {
+                tracing::warn!("Request to agent '{}' timed out: {}", agent.name, e);
+                AgentError::Timeout(e)
+            } else {
+                tracing::warn!("Request to agent '{}' failed: {}", agent.name, e);
+                AgentError::RequestFailed(e)
+            }
+        })?;
 
-        if !response.status().is_success() {
+        let status = response.status();
+        tracing::debug!("Received response from agent '{}' with status: {}", agent.name, status);
+        
+        if !status.is_success() {
+            let error_body = response.text().await.unwrap_or_default();
+            tracing::error!("Agent '{}' returned error status {}: {}", agent.name, status, error_body);
             return Err(AgentError::InvalidResponse(format!(
                 "HTTP {}: {}",
-                response.status(),
-                response.text().await.unwrap_or_default()
+                status,
+                error_body
             )));
         }
 
-        response
+        tracing::debug!("Parsing JSON response from agent '{}'", agent.name);
+        let result = response
             .json::<R>()
             .await
-            .map_err(|e| AgentError::InvalidResponse(e.to_string()))
+            .map_err(|e| {
+                tracing::error!("Failed to parse JSON response from agent '{}': {}", agent.name, e);
+                AgentError::InvalidResponse(e.to_string())
+            });
+            
+        if result.is_ok() {
+            tracing::debug!("Successfully parsed response from agent '{}'", agent.name);
+        }
+        
+        result
     }
 
     /// Get categories from an agent
@@ -81,6 +117,7 @@ impl AgentClient {
         &self,
         agent: &Agent,
     ) -> Result<crate::types::AgentCategoryListingResponse, AgentError> {
+        tracing::info!("Getting categories from agent '{}'", agent.name);
         self.make_request::<(), _>(agent, "categories", Method::GET, None)
             .await
     }
@@ -91,6 +128,7 @@ impl AgentClient {
         agent: &Agent,
         request: &crate::types::AgentItemInfoRequest,
     ) -> Result<crate::types::AgentItemInfoResponse, AgentError> {
+        tracing::info!("Getting item info from agent '{}' for path: {:?}", agent.name, request.item_path);
         self.make_request(agent, "items", Method::POST, Some(request))
             .await
     }

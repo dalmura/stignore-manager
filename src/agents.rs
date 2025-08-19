@@ -19,38 +19,49 @@ pub(crate) struct CategoryListingResponse {
 pub async fn list_categories(
     agent_client: &crate::agent_client::AgentClient,
     agents: Vec<Agent>,
-) -> Result<CategoryListingResponse, crate::agent_client::AgentError> {
+) -> CategoryListingResponse {
     let mut agent_responses: Vec<AgentCategoryListingResponse> = vec![];
     let mut consolidated: HashMap<String, ItemGroup> = HashMap::new();
 
     for agent in agents {
-        let resp = agent_client.get_categories(&agent).await?;
+        match agent_client.get_categories(&agent).await {
+            Ok(resp) => {
+                agent_responses.push(resp.clone());
 
-        agent_responses.push(resp.clone());
-
-        for mut item in resp.items {
-            // Use simple copy counting for performance - ignore checking disabled for now
-            set_copy_count_recursive(&mut item, 1);
-            match consolidated.get(&item.id) {
-                Some(existing) => {
-                    // Merge with existing item using addition
-                    let merged = existing.clone() + item;
-                    consolidated.insert(merged.id.clone(), merged);
+                for mut item in resp.items {
+                    // Use simple copy counting for performance - ignore checking disabled for now
+                    set_copy_count_recursive(&mut item, 1);
+                    match consolidated.get(&item.id) {
+                        Some(existing) => {
+                            // Merge with existing item using addition
+                            let merged = existing.clone() + item;
+                            consolidated.insert(merged.id.clone(), merged);
+                        }
+                        None => {
+                            consolidated.insert(item.id.clone(), item.clone());
+                        }
+                    };
                 }
-                None => {
-                    consolidated.insert(item.id.clone(), item.clone());
-                }
-            };
+            }
+            Err(e) => {
+                tracing::warn!("Failed to get categories from agent '{}': {}", agent.name, e);
+                // Create an empty response for the failed agent to maintain consistency
+                let empty_response = AgentCategoryListingResponse {
+                    items: vec![],
+                };
+                agent_responses.push(empty_response);
+                // Don't add any items to consolidated for this agent
+            }
         }
     }
 
     let mut sorted_items: Vec<ItemGroup> = consolidated.values().cloned().collect();
     sorted_items.sort_by(|a, b| a.name.cmp(&b.name));
 
-    Ok(CategoryListingResponse {
+    CategoryListingResponse {
         agent_items: agent_responses,
         items: sorted_items,
-    })
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -21,24 +21,11 @@ fn sanitize_id(id: &str) -> String {
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/navbar.html", get(navbar))
         .route("/itemlist.html", get(itemlist))
         .route("/infopanel.html", post(infopanel))
         .route("/agent-modal.html", get(agent_modal))
         .route("/ignore", post(ignore_item))
         .route("/delete", post(delete_item))
-}
-
-async fn navbar(State(state): State<AppState>) -> impl IntoResponse {
-    let mut context = state.context.clone();
-    context.insert("page_title", "Index");
-    context.insert("message", "Welcome to stignore-manager.");
-
-    RenderHtml(
-        Key("components/navbar.html".to_string()),
-        state.engine,
-        context.into_json(),
-    )
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -82,24 +69,17 @@ fn convert_item_with_flags(item: &ItemGroup, minimum_copies: u8) -> ItemGroupWit
 async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
     let mut context = state.context.clone();
 
-    match agents::list_categories(&state.agent_client, state.config.agents).await {
-        Ok(response) => {
-            let mut sorted_items = response.items;
-            sorted_items.sort_by(|a, b| a.name.cmp(&b.name));
+    let response = agents::list_categories(&state.agent_client, state.config.agents).await;
+    let mut sorted_items = response.items;
+    sorted_items.sort_by(|a, b| a.name.cmp(&b.name));
 
-            // Convert to ItemGroupWithFlags with has_insufficient_copies field
-            let items_with_flags: Vec<ItemGroupWithFlags> = sorted_items
-                .iter()
-                .map(|item| convert_item_with_flags(item, state.config.manager.minimum_copies))
-                .collect();
+    // Convert to ItemGroupWithFlags with has_insufficient_copies field
+    let items_with_flags: Vec<ItemGroupWithFlags> = sorted_items
+        .iter()
+        .map(|item| convert_item_with_flags(item, state.config.manager.minimum_copies))
+        .collect();
 
-            context.insert("items", &items_with_flags);
-        }
-        Err(_) => {
-            let items: Vec<ItemGroupWithFlags> = vec![];
-            context.insert("items", &items);
-        }
-    }
+    context.insert("items", &items_with_flags);
 
     context.insert("minimum_copies", &state.config.manager.minimum_copies);
 

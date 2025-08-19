@@ -1,6 +1,7 @@
 [manager]
 port = 8000
 minimum_copies = 2
+# agent_timeout_seconds = 5  # Optional: Agent request timeout in seconds (default: 5)
 
 [[agents]]
 name = "my.agent"
