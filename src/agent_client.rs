@@ -58,7 +58,12 @@ impl AgentClient {
         R: for<'de> Deserialize<'de>,
     {
         let url = format!("http://{}/api/v1/{}", agent.hostname, endpoint);
-        tracing::debug!("Making {} request to agent '{}' at URL: {}", method, agent.name, url);
+        tracing::debug!(
+            "Making {} request to agent '{}' at URL: {}",
+            method,
+            agent.name,
+            url
+        );
 
         let mut request = self
             .client
@@ -72,7 +77,10 @@ impl AgentClient {
             tracing::debug!("Request to agent '{}' includes JSON body", agent.name);
         }
 
-        tracing::debug!("Sending request to agent '{}' (timeout configured)", agent.name);
+        tracing::debug!(
+            "Sending request to agent '{}' (timeout configured)",
+            agent.name
+        );
         let response = request.send().await.map_err(|e| {
             if e.is_timeout() {
                 tracing::warn!("Request to agent '{}' timed out: {}", agent.name, e);
@@ -84,31 +92,40 @@ impl AgentClient {
         })?;
 
         let status = response.status();
-        tracing::debug!("Received response from agent '{}' with status: {}", agent.name, status);
-        
+        tracing::debug!(
+            "Received response from agent '{}' with status: {}",
+            agent.name,
+            status
+        );
+
         if !status.is_success() {
             let error_body = response.text().await.unwrap_or_default();
-            tracing::error!("Agent '{}' returned error status {}: {}", agent.name, status, error_body);
-            return Err(AgentError::InvalidResponse(format!(
-                "HTTP {}: {}",
+            tracing::error!(
+                "Agent '{}' returned error status {}: {}",
+                agent.name,
                 status,
                 error_body
+            );
+            return Err(AgentError::InvalidResponse(format!(
+                "HTTP {}: {}",
+                status, error_body
             )));
         }
 
         tracing::debug!("Parsing JSON response from agent '{}'", agent.name);
-        let result = response
-            .json::<R>()
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to parse JSON response from agent '{}': {}", agent.name, e);
-                AgentError::InvalidResponse(e.to_string())
-            });
-            
+        let result = response.json::<R>().await.map_err(|e| {
+            tracing::error!(
+                "Failed to parse JSON response from agent '{}': {}",
+                agent.name,
+                e
+            );
+            AgentError::InvalidResponse(e.to_string())
+        });
+
         if result.is_ok() {
             tracing::debug!("Successfully parsed response from agent '{}'", agent.name);
         }
-        
+
         result
     }
 
@@ -128,7 +145,11 @@ impl AgentClient {
         agent: &Agent,
         request: &crate::types::AgentItemInfoRequest,
     ) -> Result<crate::types::AgentItemInfoResponse, AgentError> {
-        tracing::info!("Getting item info from agent '{}' for path: {:?}", agent.name, request.item_path);
+        tracing::info!(
+            "Getting item info from agent '{}' for path: {:?}",
+            agent.name,
+            request.item_path
+        );
         self.make_request(agent, "items", Method::POST, Some(request))
             .await
     }

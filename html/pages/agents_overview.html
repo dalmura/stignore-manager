@@ -50,17 +50,17 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if agent.total_size_mb > 0 %}
-                                    {{ agent.total_size_mb }} MB
+                                {% if agent.total_size_kb > 0 %}
+                                    {{ agent.total_size_kb | humansize }}
                                 {% else %}
-                                    <span class="text-muted">0 MB</span>
+                                    <span class="text-muted">0 B</span>
                                 {% endif %}
                             </td>
                             <td>
                                 {% if agent.categories and agent.categories | length > 0 %}
                                     <div class="d-flex flex-wrap gap-1">
                                         {% for category in agent.categories %}
-                                            <span class="badge bg-primary" title="{{ category.size_mb }} MB, {{ category.item_count }} items">
+                                            <span class="badge bg-primary" title="{{ category.size_kb | humansize }}, {{ category.item_count }} items">
                                                 {{ category.name }}
                                             </span>
                                         {% endfor %}

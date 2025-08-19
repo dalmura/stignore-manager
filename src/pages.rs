@@ -9,7 +9,7 @@ use crate::agents;
 #[derive(Serialize)]
 struct CategoryInfo {
     name: String,
-    size_mb: f64,
+    size_kb: u64,
     item_count: usize,
 }
 
@@ -17,7 +17,7 @@ struct CategoryInfo {
 struct AgentSummary {
     name: String,
     url: String,
-    total_size_mb: f64,
+    total_size_kb: u64,
     categories: Vec<CategoryInfo>,
     status: String,
     status_message: Option<String>,
@@ -73,7 +73,7 @@ pub async fn agents_overview(State(state): State<AppState>) -> impl IntoResponse
                                 if size_kb > 0 || item_count > 0 {
                                     category_infos.push(CategoryInfo {
                                         name: category.name.clone(),
-                                        size_mb: (size_kb as f64 / 1024.0).round(),
+                                        size_kb,
                                         item_count,
                                     });
                                 }
@@ -131,7 +131,7 @@ pub async fn agents_overview(State(state): State<AppState>) -> impl IntoResponse
         let summary = AgentSummary {
             name: agent.name.clone(),
             url: agent.hostname.clone(),
-            total_size_mb: (total_size_kb as f64 / 1024.0).round(),
+            total_size_kb,
             categories: category_infos,
             status: agent_status,
             status_message,

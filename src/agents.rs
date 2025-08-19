@@ -44,11 +44,13 @@ pub async fn list_categories(
                 }
             }
             Err(e) => {
-                tracing::warn!("Failed to get categories from agent '{}': {}", agent.name, e);
+                tracing::warn!(
+                    "Failed to get categories from agent '{}': {}",
+                    agent.name,
+                    e
+                );
                 // Create an empty response for the failed agent to maintain consistency
-                let empty_response = AgentCategoryListingResponse {
-                    items: vec![],
-                };
+                let empty_response = AgentCategoryListingResponse { items: vec![] };
                 agent_responses.push(empty_response);
                 // Don't add any items to consolidated for this agent
             }
