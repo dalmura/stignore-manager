@@ -3,7 +3,20 @@
     {% include "utils/head.html" %}
     <body>
         {% include "components/navbar.html" %}
-        <div class="container-fluid" hx-get="/components/itemlist.html" hx-trigger="load"></div>
+        <div class="container-fluid" hx-get="/components/itemlist.html" hx-trigger="load">
+            <!-- Loading message displayed until itemlist loads -->
+            <div class="text-center py-5">
+                <div class="mb-4">
+                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <h4 class="text-muted mb-3">Loading File Browser</h4>
+                <p class="text-muted">
+                    Please wait while we load the results from the agents...
+                </p>
+            </div>
+        </div>
 
         <!-- Agent Details Modal -->
         <div class="modal fade" id="agentModal" tabindex="-1" aria-labelledby="agentModalLabel" aria-hidden="true">
