@@ -625,8 +625,20 @@ async fn dynamic_items(
 
     context.insert("parent_id", &query.parent_id);
     context.insert("parent_path", &query.parent_path);
+    context.insert("parent_path_raw", &decoded_parent_path);
     context.insert("level", &query.level);
     context.insert("minimum_copies", &state.config.manager.minimum_copies);
+
+    // For level 3, extract and decode category_id from parent_id (format: categoryId-level2Id)
+    if query.level == 3 {
+        let parts: Vec<&str> = query.parent_id.split('-').collect();
+        if parts.len() >= 2 {
+            let category_id_encoded = parts[0];
+            if let Ok(category_id_raw) = unsanitize_id(category_id_encoded) {
+                context.insert("category_id_raw", &category_id_raw);
+            }
+        }
+    }
 
     RenderHtml(
         Key("components/dynamic-items.html".to_string()),

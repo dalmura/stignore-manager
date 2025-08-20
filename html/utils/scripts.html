@@ -146,7 +146,7 @@ function restoreSelectionFromUrl() {
                 selectionFound = true;
             }
         } else if (selectedId.startsWith('item-sub1-')) {
-            // Level 2 selection - need to activate parent first
+            // Level 2 selection - need to activate parent first and wait for lazy loading
             const parts = selectedId.split('-');
             const parentId = `parent-item-${parts[2]}`;
 
@@ -156,7 +156,7 @@ function restoreSelectionFromUrl() {
                 parentTab.show();
                 parentElement.click();
 
-                // Wait for parent to load, then activate the sub item
+                // Wait for parent to lazy load level 2 items
                 setTimeout(() => {
                     const selectedElement = document.getElementById(selectedId);
                     if (selectedElement) {
@@ -165,36 +165,7 @@ function restoreSelectionFromUrl() {
                         selectedElement.click();
                         selectionFound = true;
                     } else {
-                        showToast('Selected item no longer exists', 'error');
-                        // Fall back to parent selection
-                        updateUrlWithSelection(parentId);
-                    }
-                }, 100);
-            } else {
-                showToast('Selected item no longer exists', 'error');
-                clearUrlSelection();
-            }
-        } else if (selectedId.startsWith('item-sub2-')) {
-            // Level 3 selection - need to activate parent and grandparent first
-            const parts = selectedId.split('-');
-            const grandparentId = `parent-item-${parts[2]}`;
-            const parentId = `item-sub1-${parts[2]}-${parts[3]}`;
-
-            const grandparentElement = document.getElementById(grandparentId);
-            if (grandparentElement) {
-                const grandparentTab = new bootstrap.Tab(grandparentElement);
-                grandparentTab.show();
-                grandparentElement.click();
-
-                // Wait for grandparent to load, then activate parent
-                setTimeout(() => {
-                    const parentElement = document.getElementById(parentId);
-                    if (parentElement) {
-                        const parentTab = new bootstrap.Tab(parentElement);
-                        parentTab.show();
-                        parentElement.click();
-
-                        // Wait for parent to load, then activate the final item
+                        // Try waiting a bit longer for lazy loading
                         setTimeout(() => {
                             const selectedElement = document.getElementById(selectedId);
                             if (selectedElement) {
@@ -207,13 +178,81 @@ function restoreSelectionFromUrl() {
                                 // Fall back to parent selection
                                 updateUrlWithSelection(parentId);
                             }
-                        }, 100);
-                    } else {
-                        showToast('Selected item no longer exists', 'error');
-                        // Fall back to grandparent selection
-                        updateUrlWithSelection(grandparentId);
+                        }, 200);
                     }
-                }, 100);
+                }, 200);
+            } else {
+                showToast('Selected item no longer exists', 'error');
+                clearUrlSelection();
+            }
+        } else if (selectedId.startsWith('item-sub2-')) {
+            // Level 3 selection - need to activate parent and grandparent first with lazy loading
+            const parts = selectedId.split('-');
+            const grandparentId = `parent-item-${parts[2]}`;
+            const parentId = `item-sub1-${parts[2]}-${parts[3]}`;
+
+            const grandparentElement = document.getElementById(grandparentId);
+            if (grandparentElement) {
+                const grandparentTab = new bootstrap.Tab(grandparentElement);
+                grandparentTab.show();
+                grandparentElement.click();
+
+                // Wait for grandparent (level 2) to lazy load
+                setTimeout(() => {
+                    const parentElement = document.getElementById(parentId);
+                    if (parentElement) {
+                        const parentTab = new bootstrap.Tab(parentElement);
+                        parentTab.show();
+                        parentElement.click();
+
+                        // Wait for parent (level 3) to lazy load - increased timeout for lazy loading
+                        setTimeout(() => {
+                            const selectedElement = document.getElementById(selectedId);
+                            if (selectedElement) {
+                                selectedElement.click();
+                                selectionFound = true;
+                            } else {
+                                // Try waiting a bit longer for lazy loading
+                                setTimeout(() => {
+                                    const selectedElement = document.getElementById(selectedId);
+                                    if (selectedElement) {
+                                        selectedElement.click();
+                                        selectionFound = true;
+                                    } else {
+                                        showToast('Selected item no longer exists', 'error');
+                                        // Fall back to parent selection
+                                        updateUrlWithSelection(parentId);
+                                    }
+                                }, 200);
+                            }
+                        }, 300);
+                    } else {
+                        // Try waiting longer for level 2 lazy loading
+                        setTimeout(() => {
+                            const parentElement = document.getElementById(parentId);
+                            if (parentElement) {
+                                const parentTab = new bootstrap.Tab(parentElement);
+                                parentTab.show();
+                                parentElement.click();
+
+                                setTimeout(() => {
+                                    const selectedElement = document.getElementById(selectedId);
+                                    if (selectedElement) {
+                                        selectedElement.click();
+                                        selectionFound = true;
+                                    } else {
+                                        showToast('Selected item no longer exists', 'error');
+                                        updateUrlWithSelection(parentId);
+                                    }
+                                }, 300);
+                            } else {
+                                showToast('Selected item no longer exists', 'error');
+                                // Fall back to grandparent selection
+                                updateUrlWithSelection(grandparentId);
+                            }
+                        }, 200);
+                    }
+                }, 200);
             } else {
                 showToast('Selected item no longer exists', 'error');
                 clearUrlSelection();

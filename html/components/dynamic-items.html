@@ -1,15 +1,15 @@
 {% for item in items %}
 <a
-        id="item-sub{{ level - 1 }}-{{ parent_id }}{% if level == 3 %}-{{ item.safe_id }}{% else %}-{{ item.safe_id }}{% endif %}"
+        id="item-sub{{ level - 1 }}-{{ parent_id }}-{{ item.safe_id }}"
         class="d-flex justify-content-between align-items-center list-group-item list-group-item-action fade-in{% if level == 2 and item.has_insufficient_copies %} list-group-item-warning{% elif level == 3 and item.copy_count < minimum_copies %} list-group-item-warning{% endif %}"
         data-bs-toggle="list"
         {% if level == 2 %}href="#list-sub2-{{ item.safe_id }}"{% else %}href="#"{% endif %}
         role="tab"
         hx-post="/components/infopanel.html"
         hx-ext="json-enc"
-        hx-include="#item-sub{{ level - 1 }}-{{ parent_id }}{% if level == 3 %}-{{ item.safe_id }}{% else %}-{{ item.safe_id }}{% endif %} input"
+        hx-include="#item-sub{{ level - 1 }}-{{ parent_id }}-{{ item.safe_id }} input"
         hx-target="#info-panel"
-        {% if level == 2 %}data-safe-id="{{ item.safe_id }}"{% endif %}
+        {% if level == 2 %}data-safe-id="{{ item.safe_id }}" data-category-id="{{ parent_id }}"{% endif %}
 >
     <div class="d-flex align-items-center">
         {% if level == 2 %}
@@ -32,11 +32,11 @@
     <span class="badge text-bg-primary rounded-pill">{{ item.items | length }}</span>
     <input type="hidden" name="item_path" value="">
     {% if level == 2 %}
-    <input type="hidden" name="item_path" value="{{ parent_path }}">
+    <input type="hidden" name="item_path" value="{{ parent_path_raw }}">
     <input type="hidden" name="item_path" value="{{ item.id }}">
     {% else %}
-    <input type="hidden" name="item_path" value="{{ parent_path | split(pat="/") | first }}">
-    <input type="hidden" name="item_path" value="{{ parent_path }}">
+    <input type="hidden" name="item_path" value="{{ category_id_raw }}">
+    <input type="hidden" name="item_path" value="{{ parent_path_raw }}">
     <input type="hidden" name="item_path" value="{{ item.id }}">
     {% endif %}
 </a>
@@ -79,7 +79,7 @@ document.addEventListener('click', function(event) {
                 newPane.setAttribute('role', 'tabpanel');
                 newPane.innerHTML = `
                     <div class="list-group" id="list-sub2-tabs-${tabPaneId.replace('list-sub2-', '')}" role="tablist"
-                         hx-get="/components/dynamic-items.html?parent_id=${tabPaneId.replace('list-sub2-', '')}&parent_path=${target.dataset.safeId}&level=3"
+                         hx-get="/components/dynamic-items.html?parent_id=${target.dataset.categoryId}-${tabPaneId.replace('list-sub2-', '')}&parent_path=${target.dataset.safeId}&level=3"
                          hx-trigger="revealed"
                          hx-swap="innerHTML">
                         <div class="text-center py-3">
