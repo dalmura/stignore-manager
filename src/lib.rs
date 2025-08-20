@@ -11,6 +11,7 @@ use tera::{Context, Result as TeraResult, Tera, Value};
 use axum::extract::FromRef;
 use axum::{Router, routing::get};
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::compression::CompressionLayer;
 
 type AppEngine = Engine<Tera>;
 
@@ -54,5 +55,6 @@ pub fn create_app(state: AppState) -> Router {
         .nest_service("/assets", ServeDir::new("assets"))
         .nest("/components", components::router())
         .fallback(pages::not_found)
+        .layer(CompressionLayer::new())
         .with_state(state)
 }
