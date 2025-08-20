@@ -10,6 +10,16 @@ fn set_copy_count_recursive(item: &mut ItemGroup, count: u8) {
     }
 }
 
+pub(crate) fn sort_all_items(items: &mut [ItemGroup]) {
+    // Sort items by name
+    items.sort_by(|a, b| a.name.cmp(&b.name));
+
+    // Recursively sort all child items
+    for item in items {
+        sort_all_items(&mut item.items);
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct CategoryListingResponse {
     pub items: Vec<ItemGroup>,
@@ -58,7 +68,7 @@ pub async fn list_categories(
     }
 
     let mut sorted_items: Vec<ItemGroup> = consolidated.values().cloned().collect();
-    sorted_items.sort_by(|a, b| a.name.cmp(&b.name));
+    sort_all_items(&mut sorted_items);
 
     CategoryListingResponse {
         agent_items: agent_responses,

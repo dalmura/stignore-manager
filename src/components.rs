@@ -70,11 +70,11 @@ async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
     let mut context = state.context.clone();
 
     let response = agents::list_categories(&state.agent_client, state.config.agents).await;
-    let mut sorted_items = response.items;
-    sorted_items.sort_by(|a, b| a.name.cmp(&b.name));
+    // Items are already sorted by agents::list_categories
 
     // Convert to ItemGroupWithFlags with has_insufficient_copies field
-    let items_with_flags: Vec<ItemGroupWithFlags> = sorted_items
+    let items_with_flags: Vec<ItemGroupWithFlags> = response
+        .items
         .iter()
         .map(|item| convert_item_with_flags(item, state.config.manager.minimum_copies))
         .collect();
