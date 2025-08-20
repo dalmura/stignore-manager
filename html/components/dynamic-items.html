@@ -1,36 +1,50 @@
-{% for j in items %}
+{% for item in items %}
 <a
-        id="item-sub1-{{ parent_id }}-{{ j.safe_id }}"
-        class="d-flex justify-content-between align-items-center list-group-item list-group-item-action fade-in{% if j.has_insufficient_copies %} list-group-item-warning{% endif %}"
+        id="item-sub{{ level - 1 }}-{{ parent_id }}{% if level == 3 %}-{{ item.safe_id }}{% else %}-{{ item.safe_id }}{% endif %}"
+        class="d-flex justify-content-between align-items-center list-group-item list-group-item-action fade-in{% if level == 2 and item.has_insufficient_copies %} list-group-item-warning{% elif level == 3 and item.copy_count < minimum_copies %} list-group-item-warning{% endif %}"
         data-bs-toggle="list"
-        href="#list-sub2-{{ j.safe_id }}"
+        {% if level == 2 %}href="#list-sub2-{{ item.safe_id }}"{% else %}href="#"{% endif %}
         role="tab"
         hx-post="/components/infopanel.html"
         hx-ext="json-enc"
-        hx-include="#item-sub1-{{ parent_id }}-{{ j.safe_id }} input"
+        hx-include="#item-sub{{ level - 1 }}-{{ parent_id }}{% if level == 3 %}-{{ item.safe_id }}{% else %}-{{ item.safe_id }}{% endif %} input"
         hx-target="#info-panel"
+        {% if level == 2 %}data-safe-id="{{ item.safe_id }}"{% endif %}
 >
     <div class="d-flex align-items-center">
-        {% if j.leaf %}
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-secondary">
-            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-        </svg>
+        {% if level == 2 %}
+            {% if item.leaf %}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-secondary">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+            </svg>
+            {% else %}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-info">
+                <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+            </svg>
+            {% endif %}
         {% else %}
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-info">
-            <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
-        </svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-secondary">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+            </svg>
         {% endif %}
-        <span>{{ j.name }}</span>
+        <span>{{ item.name }}</span>
     </div>
-    <span class="badge text-bg-primary rounded-pill">{{ j.items | length }}</span>
+    <span class="badge text-bg-primary rounded-pill">{{ item.items | length }}</span>
     <input type="hidden" name="item_path" value="">
+    {% if level == 2 %}
     <input type="hidden" name="item_path" value="{{ parent_path }}">
-    <input type="hidden" name="item_path" value="{{ j.id }}">
+    <input type="hidden" name="item_path" value="{{ item.id }}">
+    {% else %}
+    <input type="hidden" name="item_path" value="{{ parent_path | split(pat="/") | first }}">
+    <input type="hidden" name="item_path" value="{{ parent_path }}">
+    <input type="hidden" name="item_path" value="{{ item.id }}">
+    {% endif %}
 </a>
 {% endfor %}
 
 <script>
-// Set up event delegation for dynamically loaded sub1 items
+{% if level == 2 %}
+// Set up event delegation for dynamically loaded level 2 items
 document.addEventListener('click', function(event) {
     const target = event.target.closest('a[id^="item-sub1-"]');
     if (target && target.getAttribute('data-bs-toggle') === 'list') {
@@ -65,7 +79,7 @@ document.addEventListener('click', function(event) {
                 newPane.setAttribute('role', 'tabpanel');
                 newPane.innerHTML = `
                     <div class="list-group" id="list-sub2-tabs-${tabPaneId.replace('list-sub2-', '')}" role="tablist"
-                         hx-get="/components/subsubitems.html?parent_id=${tabPaneId.replace('list-sub2-', '')}&parent_path=${target.querySelector('input[name="item_path"]:nth-of-type(3)').value}"
+                         hx-get="/components/dynamic-items.html?parent_id=${tabPaneId.replace('list-sub2-', '')}&parent_path=${target.dataset.safeId}&level=3"
                          hx-trigger="revealed"
                          hx-swap="innerHTML">
                         <div class="text-center py-3">
@@ -92,4 +106,18 @@ document.addEventListener('click', function(event) {
         }
     }
 });
+{% else %}
+// Set up event delegation for dynamically loaded level 3 items
+document.addEventListener('click', function(event) {
+    const target = event.target.closest('a[id^="item-sub2-"]');
+    if (target && target.getAttribute('data-bs-toggle') === 'list') {
+        event.preventDefault();
+        
+        // Update URL with selected element ID
+        if (typeof updateUrlWithSelection === 'function') {
+            updateUrlWithSelection(target.id);
+        }
+    }
+});
+{% endif %}
 </script>

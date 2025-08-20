@@ -126,7 +126,7 @@
             {% for i in items %}
             <div class="tab-pane" id="list-sub1-{{ i.safe_id }}" role="tabpanel">
                 <div class="list-group" id="list-sub1-tabs-{{ i.safe_id }}" role="tablist"
-                     hx-get="/components/subitems.html?parent_id={{ i.safe_id }}&parent_path={{ i.id }}"
+                     hx-get="/components/dynamic-items.html?parent_id={{ i.safe_id }}&parent_path={{ i.safe_id }}&level=2"
                      hx-trigger="revealed"
                      hx-swap="innerHTML">
                     <div class="text-center py-3">

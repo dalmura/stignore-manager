@@ -19,11 +19,17 @@ fn sanitize_id(id: &str) -> String {
     format!("id_{}", encoded)
 }
 
+fn unsanitize_id(safe_id: &str) -> Result<String, base64::DecodeError> {
+    use base64::Engine;
+    let id_part = safe_id.strip_prefix("id_").unwrap_or(safe_id);
+    let decoded_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(id_part)?;
+    Ok(String::from_utf8_lossy(&decoded_bytes).to_string())
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/itemlist.html", get(itemlist))
-        .route("/subitems.html", get(subitems))
-        .route("/subsubitems.html", get(subsubitems))
+        .route("/dynamic-items.html", get(dynamic_items))
         .route("/infopanel.html", post(infopanel))
         .route("/agent-modal.html", get(agent_modal))
         .route("/ignore", post(ignore_item))
@@ -104,9 +110,10 @@ struct AgentModalQuery {
 }
 
 #[derive(Deserialize, Debug)]
-struct SubitemsQuery {
+struct DynamicItemsQuery {
     parent_id: String,
     parent_path: String,
+    level: u8, // 2 or 3
 }
 
 #[derive(Deserialize, Debug)]
@@ -555,86 +562,74 @@ async fn delete_item(
     }
 }
 
-async fn subitems(
+async fn dynamic_items(
     State(state): State<AppState>,
-    Query(query): Query<SubitemsQuery>,
+    Query(query): Query<DynamicItemsQuery>,
 ) -> impl IntoResponse {
     let mut context = state.context.clone();
 
+    // Decode the parent_path from base64
+    let decoded_parent_path = match unsanitize_id(&query.parent_path) {
+        Ok(path) => path,
+        Err(_) => {
+            // If decoding fails, return empty items
+            context.insert("items", &Vec::<ItemGroupWithFlags>::new());
+            context.insert("parent_id", &query.parent_id);
+            context.insert("parent_path", &query.parent_path);
+            context.insert("level", &query.level);
+            context.insert("minimum_copies", &state.config.manager.minimum_copies);
+            return RenderHtml(
+                Key("components/dynamic-items.html".to_string()),
+                state.engine,
+                context.into_json(),
+            );
+        }
+    };
+
     let response = agents::list_categories(&state.agent_client, state.config.agents).await;
 
-    // Find the parent item by its path
-    if let Some(parent_item) = response
-        .items
-        .iter()
-        .find(|item| item.id == query.parent_path)
-    {
-        let items_with_flags: Vec<ItemGroupWithFlags> = parent_item
+    let found_items = if query.level == 2 {
+        // Level 2: Find direct children of top-level category
+        response
             .items
             .iter()
-            .map(|item| convert_item_with_flags(item, state.config.manager.minimum_copies))
-            .collect();
-
-        context.insert("items", &items_with_flags);
-        context.insert("parent_id", &query.parent_id);
-        context.insert("parent_path", &query.parent_path);
+            .find(|item| item.id == decoded_parent_path)
+            .map(|item| &item.items)
     } else {
-        context.insert("items", &Vec::<ItemGroupWithFlags>::new());
-        context.insert("parent_id", &query.parent_id);
-        context.insert("parent_path", &query.parent_path);
-    }
-
-    RenderHtml(
-        Key("components/subitems.html".to_string()),
-        state.engine,
-        context.into_json(),
-    )
-}
-
-async fn subsubitems(
-    State(state): State<AppState>,
-    Query(query): Query<SubitemsQuery>,
-) -> impl IntoResponse {
-    let mut context = state.context.clone();
-
-    let response = agents::list_categories(&state.agent_client, state.config.agents).await;
-
-    // Find the parent item by traversing the path
-    // query.parent_path is the level 2 item's path, we need to find its items
-    let mut found_item: Option<&ItemGroup> = None;
-
-    for top_level_item in &response.items {
-        for level2_item in &top_level_item.items {
-            if level2_item.id == query.parent_path {
-                found_item = Some(level2_item);
+        // Level 3: Find children of level 2 item
+        let mut found_item: Option<&Vec<ItemGroup>> = None;
+        for top_level_item in &response.items {
+            for level2_item in &top_level_item.items {
+                if level2_item.id == decoded_parent_path {
+                    found_item = Some(&level2_item.items);
+                    break;
+                }
+            }
+            if found_item.is_some() {
                 break;
             }
         }
-        if found_item.is_some() {
-            break;
-        }
-    }
+        found_item
+    };
 
-    if let Some(parent_item) = found_item {
-        let items_with_flags: Vec<ItemGroupWithFlags> = parent_item
-            .items
+    if let Some(items) = found_items {
+        let items_with_flags: Vec<ItemGroupWithFlags> = items
             .iter()
             .map(|item| convert_item_with_flags(item, state.config.manager.minimum_copies))
             .collect();
 
         context.insert("items", &items_with_flags);
-        context.insert("parent_id", &query.parent_id);
-        context.insert("parent_path", &query.parent_path);
     } else {
         context.insert("items", &Vec::<ItemGroupWithFlags>::new());
-        context.insert("parent_id", &query.parent_id);
-        context.insert("parent_path", &query.parent_path);
     }
 
+    context.insert("parent_id", &query.parent_id);
+    context.insert("parent_path", &query.parent_path);
+    context.insert("level", &query.level);
     context.insert("minimum_copies", &state.config.manager.minimum_copies);
 
     RenderHtml(
-        Key("components/subsubitems.html".to_string()),
+        Key("components/dynamic-items.html".to_string()),
         state.engine,
         context.into_json(),
     )
