@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::Add;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct ItemGroup {
+pub struct ItemGroup {
     pub id: String,
     pub name: String,
     pub size_kb: u64,
@@ -77,7 +77,11 @@ impl Add for ItemGroup {
         // Calculate total size from merged child items
         let total_size_kb = if merged_items_vec.is_empty() {
             // If no children, use the size from self or other (they should be the same for leaf nodes)
-            if self.size_kb > 0 { self.size_kb } else { other.size_kb }
+            if self.size_kb > 0 {
+                self.size_kb
+            } else {
+                other.size_kb
+            }
         } else {
             merged_items_vec
                 .iter()
@@ -115,62 +119,62 @@ impl Add for ItemGroup {
 
 // Agent API types
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentCategoryListingResponse {
+pub struct AgentCategoryListingResponse {
     pub items: Vec<ItemGroup>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentItemInfoRequest {
+pub struct AgentItemInfoRequest {
     pub item_path: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentItemInfoResponse {
+pub struct AgentItemInfoResponse {
     pub item: ItemGroup,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentIgnoreRequest {
+pub struct AgentIgnoreRequest {
     pub category_id: String,
     pub folder_path: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentIgnoreResponse {
+pub struct AgentIgnoreResponse {
     pub success: bool,
     pub message: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentDeleteRequest {
+pub struct AgentDeleteRequest {
     pub category_id: String,
     pub folder_path: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentDeleteResponse {
+pub struct AgentDeleteResponse {
     pub success: bool,
     pub message: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentIgnoreStatusRequest {
+pub struct AgentIgnoreStatusRequest {
     pub category_id: String,
     pub folder_path: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentIgnoreStatusResponse {
+pub struct AgentIgnoreStatusResponse {
     pub ignored: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentBulkIgnoreStatusRequest {
+pub struct AgentBulkIgnoreStatusRequest {
     pub items: Vec<AgentIgnoreStatusRequest>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct AgentBulkIgnoreStatusResponse {
+pub struct AgentBulkIgnoreStatusResponse {
     pub items: Vec<AgentIgnoreStatusResponse>,
 }
 
@@ -245,7 +249,7 @@ mod tests {
         // When minimum is 1: parent has 3 (sufficient), child has 1 (sufficient)
         // Should return false because all items have sufficient copies
         assert!(!parent_with_3_copies.has_insufficient_copies(1));
-        
+
         // When minimum is 4: parent has 3 (insufficient), child has 1 (also insufficient)
         // Should return true because parent itself has insufficient copies
         assert!(parent_with_3_copies.has_insufficient_copies(4));

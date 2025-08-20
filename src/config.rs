@@ -5,8 +5,8 @@ use std::process::exit;
 // Parent struct holding the entire config file
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Data {
-    pub(crate) manager: ManagerConfig,
-    pub(crate) agents: Vec<Agent>,
+    pub manager: ManagerConfig,
+    pub agents: Vec<Agent>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

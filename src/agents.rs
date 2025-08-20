@@ -21,7 +21,7 @@ pub(crate) fn sort_all_items(items: &mut [ItemGroup]) {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct CategoryListingResponse {
+pub struct CategoryListingResponse {
     pub items: Vec<ItemGroup>,
     pub agent_items: Vec<AgentCategoryListingResponse>,
 }
@@ -77,7 +77,7 @@ pub async fn list_categories(
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct ItemInfoResponse {
+pub struct ItemInfoResponse {
     pub item: ItemGroup,
     pub agent_items: Vec<(Agent, ItemGroup)>,
 }
