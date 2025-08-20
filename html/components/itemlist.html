@@ -125,107 +125,31 @@
         <div class="tab-content" id="sub1List" role="tablist">
             {% for i in items %}
             <div class="tab-pane" id="list-sub1-{{ i.safe_id }}" role="tabpanel">
-                <div class="list-group" id="list-sub1-tabs-{{ i.safe_id }}" role="tablist">
-                    {% for j in i.items %}
-                    <a
-                            id="item-sub1-{{ i.safe_id }}-{{ j.safe_id }}"
-                            class="d-flex justify-content-between align-items-center list-group-item list-group-item-action fade-in{% if j.has_insufficient_copies %} list-group-item-warning{% endif %}"
-                            data-bs-toggle="list"
-                            href="#list-sub2-{{ j.safe_id }}"
-                            role="tab"
-                            hx-post="/components/infopanel.html"
-                            hx-ext="json-enc"
-                            hx-include="#item-sub1-{{ i.safe_id }}-{{ j.safe_id }} input"
-                            hx-target="#info-panel"
-                    >
-                        <div class="d-flex align-items-center">
-                            {% if j.leaf %}
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-secondary">
-                                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-                            </svg>
-                            {% else %}
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-info">
-                                <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
-                            </svg>
-                            {% endif %}
-                            <span>{{ j.name }}</span>
+                <div class="list-group" id="list-sub1-tabs-{{ i.safe_id }}" role="tablist"
+                     hx-get="/components/subitems.html?parent_id={{ i.safe_id }}&parent_path={{ i.id }}"
+                     hx-trigger="revealed"
+                     hx-swap="innerHTML">
+                    <div class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
                         </div>
-                        <span class="badge text-bg-primary rounded-pill">{{ j.items | length }}</span>
-                        <input type="hidden" name="item_path" value="">
-                        <input type="hidden" name="item_path" value="{{ i.id }}">
-                        <input type="hidden" name="item_path" value="{{ j.id }}">
-                    </a>
-                    {% endfor %}
+                        <div class="text-muted small mt-2">Loading items...</div>
+                    </div>
                 </div>
             </div>
             {% endfor %}
         </div>
     </div>
     <script>
-        const triggerSub1TabList = document.querySelectorAll('#sub1List a');
-        triggerSub1TabList.forEach(triggerEl => {
-            const tabTrigger = new bootstrap.Tab(triggerEl)
-
-            triggerEl.addEventListener('click', event => {
-                event.preventDefault();
-                tabTrigger.show();
-
-                // Update URL with selected element ID
-                updateUrlWithSelection(triggerEl.id);
-
-                const sub2ListRows = document.querySelectorAll("#sub2List div.tab-pane a");
-                sub2ListRows.forEach(el => {
-                    el.classList.remove("active");
-                });
-            })
-        })
+        // Event delegation is now handled in subitems.html for dynamically loaded content
     </script>
     <div class="col">
         <div class="tab-content" id="sub2List" role="tablist">
-            {% for i in items %}
-            {% for j in i.items %}{% if not j.leaf %}
-            <div class="tab-pane" id="list-sub2-{{ j.safe_id }}" role="tabpanel">
-                <div class="list-group" id="list-sub2-tabs-{{ j.safe_id }}" role="tablist">
-                    {% for k in j.items %}
-                    <a
-                            id="item-sub2-{{ i.safe_id }}-{{ j.safe_id }}-{{ k.safe_id }}"
-                            class="d-flex justify-content-between align-items-center list-group-item list-group-item-action fade-in{% if k.copy_count < minimum_copies %} list-group-item-warning{% endif %}"
-                            data-bs-toggle="list"
-                            href="#"
-                            role="tab"
-                            hx-post="/components/infopanel.html"
-                            hx-ext="json-enc"
-                            hx-include="#item-sub2-{{ i.safe_id }}-{{ j.safe_id }}-{{ k.safe_id }} input"
-                            hx-target="#info-panel"
-                    >
-                        <div class="d-flex align-items-center">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-secondary">
-                                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-                            </svg>
-                            <span>{{ k.name }}</span>
-                        </div>
-                        <span class="badge text-bg-primary rounded-pill">{{ k.items | length }}</span>
-                        <input type="hidden" name="item_path" value="">
-                        <input type="hidden" name="item_path" value="{{ i.id }}">
-                        <input type="hidden" name="item_path" value="{{ j.id }}">
-                        <input type="hidden" name="item_path" value="{{ k.id }}">
-                    </a>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}{% endfor %}
-            {% endfor %}
+            <!-- Level 3 items will be loaded dynamically -->
         </div>
     </div>
     <script>
-        // Set up click handlers for level 3 items (item-sub2-*)
-        const triggerSub2TabList = document.querySelectorAll('a[id^="item-sub2-"]');
-        triggerSub2TabList.forEach(triggerEl => {
-            triggerEl.addEventListener('click', event => {
-                // Update URL with selected element ID
-                updateUrlWithSelection(triggerEl.id);
-            });
-        });
+        // Event delegation is now handled in subsubitems.html for dynamically loaded content
     </script>
     {% endif %}
 </div>

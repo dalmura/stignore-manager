@@ -22,6 +22,8 @@ fn sanitize_id(id: &str) -> String {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/itemlist.html", get(itemlist))
+        .route("/subitems.html", get(subitems))
+        .route("/subsubitems.html", get(subsubitems))
         .route("/infopanel.html", post(infopanel))
         .route("/agent-modal.html", get(agent_modal))
         .route("/ignore", post(ignore_item))
@@ -99,6 +101,12 @@ struct InfoPanelRequest {
 struct AgentModalQuery {
     agent_name: String,
     item_path: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct SubitemsQuery {
+    parent_id: String,
+    parent_path: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -545,4 +553,89 @@ async fn delete_item(
             message: format!("Failed to delete item: {}", e),
         }),
     }
+}
+
+async fn subitems(
+    State(state): State<AppState>,
+    Query(query): Query<SubitemsQuery>,
+) -> impl IntoResponse {
+    let mut context = state.context.clone();
+
+    let response = agents::list_categories(&state.agent_client, state.config.agents).await;
+
+    // Find the parent item by its path
+    if let Some(parent_item) = response
+        .items
+        .iter()
+        .find(|item| item.id == query.parent_path)
+    {
+        let items_with_flags: Vec<ItemGroupWithFlags> = parent_item
+            .items
+            .iter()
+            .map(|item| convert_item_with_flags(item, state.config.manager.minimum_copies))
+            .collect();
+
+        context.insert("items", &items_with_flags);
+        context.insert("parent_id", &query.parent_id);
+        context.insert("parent_path", &query.parent_path);
+    } else {
+        context.insert("items", &Vec::<ItemGroupWithFlags>::new());
+        context.insert("parent_id", &query.parent_id);
+        context.insert("parent_path", &query.parent_path);
+    }
+
+    RenderHtml(
+        Key("components/subitems.html".to_string()),
+        state.engine,
+        context.into_json(),
+    )
+}
+
+async fn subsubitems(
+    State(state): State<AppState>,
+    Query(query): Query<SubitemsQuery>,
+) -> impl IntoResponse {
+    let mut context = state.context.clone();
+
+    let response = agents::list_categories(&state.agent_client, state.config.agents).await;
+
+    // Find the parent item by traversing the path
+    // query.parent_path is the level 2 item's path, we need to find its items
+    let mut found_item: Option<&ItemGroup> = None;
+
+    for top_level_item in &response.items {
+        for level2_item in &top_level_item.items {
+            if level2_item.id == query.parent_path {
+                found_item = Some(level2_item);
+                break;
+            }
+        }
+        if found_item.is_some() {
+            break;
+        }
+    }
+
+    if let Some(parent_item) = found_item {
+        let items_with_flags: Vec<ItemGroupWithFlags> = parent_item
+            .items
+            .iter()
+            .map(|item| convert_item_with_flags(item, state.config.manager.minimum_copies))
+            .collect();
+
+        context.insert("items", &items_with_flags);
+        context.insert("parent_id", &query.parent_id);
+        context.insert("parent_path", &query.parent_path);
+    } else {
+        context.insert("items", &Vec::<ItemGroupWithFlags>::new());
+        context.insert("parent_id", &query.parent_id);
+        context.insert("parent_path", &query.parent_path);
+    }
+
+    context.insert("minimum_copies", &state.config.manager.minimum_copies);
+
+    RenderHtml(
+        Key("components/subsubitems.html".to_string()),
+        state.engine,
+        context.into_json(),
+    )
 }
