@@ -112,6 +112,43 @@ function performDelete(agentName, itemPath) {
     });
 }
 
+// Request cancellation for infopanel
+let currentInfoPanelRequest = null;
+
+// Set up global HTMX event handlers for infopanel request management
+document.addEventListener('DOMContentLoaded', function() {
+    // Cancel existing requests when a new infopanel request is about to start
+    document.body.addEventListener('htmx:beforeRequest', function(event) {
+        const target = event.detail.target;
+
+        // Check if this is an infopanel request
+        if (target && target.id === 'info-panel') {
+            // Cancel any existing infopanel request
+            if (currentInfoPanelRequest) {
+                htmx.trigger(currentInfoPanelRequest, 'htmx:abort');
+            }
+
+            // Track this new request
+            currentInfoPanelRequest = event.detail.elt;
+        }
+    });
+
+    // Clear tracking when requests complete
+    document.body.addEventListener('htmx:afterRequest', function(event) {
+        const target = event.detail.target;
+        if (target && target.id === 'info-panel' && currentInfoPanelRequest === event.detail.elt) {
+            currentInfoPanelRequest = null;
+        }
+    });
+
+    // Clear tracking when requests are aborted
+    document.body.addEventListener('htmx:abort', function(event) {
+        if (currentInfoPanelRequest === event.detail.elt) {
+            currentInfoPanelRequest = null;
+        }
+    });
+});
+
 // URL State Management Functions
 function updateUrlWithSelection(selectedId) {
     const url = new URL(window.location);

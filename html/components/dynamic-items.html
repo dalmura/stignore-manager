@@ -49,7 +49,7 @@ document.addEventListener('click', function(event) {
     const target = event.target.closest('a[id^="item-sub1-"]');
     if (target && target.getAttribute('data-bs-toggle') === 'list') {
         event.preventDefault();
-        
+
         const tabTrigger = new bootstrap.Tab(target);
         tabTrigger.show();
 
@@ -69,7 +69,7 @@ document.addEventListener('click', function(event) {
         if (!isLeaf) {
             const sub2List = document.getElementById('sub2List');
             const tabPaneId = target.getAttribute('href').substring(1); // Remove # prefix
-            
+
             // Create or update the sub2 tab pane
             let existingPane = document.getElementById(tabPaneId);
             if (!existingPane) {
@@ -91,11 +91,11 @@ document.addEventListener('click', function(event) {
                     </div>
                 `;
                 sub2List.appendChild(newPane);
-                
+
                 // Trigger HTMX processing for the new element
                 htmx.process(newPane);
             }
-            
+
             // Show the tab pane
             const allPanes = sub2List.querySelectorAll('.tab-pane');
             allPanes.forEach(pane => {
@@ -112,7 +112,7 @@ document.addEventListener('click', function(event) {
     const target = event.target.closest('a[id^="item-sub2-"]');
     if (target && target.getAttribute('data-bs-toggle') === 'list') {
         event.preventDefault();
-        
+
         // Update URL with selected element ID
         if (typeof updateUrlWithSelection === 'function') {
             updateUrlWithSelection(target.id);
