@@ -65,10 +65,14 @@ async fn test_agent_modal_endpoint() {
     let app = create_test_app(config);
     let server = TestServer::new(app).unwrap();
 
+    let request_body = json!({
+        "agent_name": "test-agent-1",
+        "item_path": ["Movies", "Action", "movie.mkv"]
+    });
+
     let response = server
-        .get("/components/agent-modal.html")
-        .add_query_param("agent_name", "test-agent-1")
-        .add_query_param("item_path", "Movies%2FAction%2Fmovie.mkv")
+        .post("/components/agent-modal.html")
+        .json(&request_body)
         .await;
 
     response.assert_status_ok();

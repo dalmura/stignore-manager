@@ -31,7 +31,7 @@ pub fn router() -> Router<AppState> {
         .route("/itemlist.html", get(itemlist))
         .route("/dynamic-items.html", get(dynamic_items))
         .route("/infopanel.html", post(infopanel))
-        .route("/agent-modal.html", get(agent_modal))
+        .route("/agent-modal.html", post(agent_modal))
         .route("/ignore", post(ignore_item))
         .route("/delete", post(delete_item))
 }
@@ -104,9 +104,9 @@ struct InfoPanelRequest {
 }
 
 #[derive(Deserialize, Debug)]
-struct AgentModalQuery {
+struct AgentModalRequest {
     agent_name: String,
-    item_path: String,
+    item_path: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -331,21 +331,17 @@ async fn infopanel(
 
 async fn agent_modal(
     State(state): State<AppState>,
-    Query(query): Query<AgentModalQuery>,
+    Json(payload): Json<AgentModalRequest>,
 ) -> impl IntoResponse {
     let mut context = state.context.clone();
 
-    // Parse the item_path (Axum already URL-decodes query parameters)
-    let item_path_parts: Vec<&str> = if query.item_path.is_empty() {
-        vec![]
-    } else {
-        let parts: Vec<&str> = query
-            .item_path
-            .split('/')
-            .filter(|s| !s.is_empty())
-            .collect();
-        parts
-    };
+    // Filter out empty strings from item_path
+    let item_path_parts: Vec<&str> = payload
+        .item_path
+        .iter()
+        .filter(|i| !i.is_empty())
+        .map(AsRef::as_ref)
+        .collect();
 
     match agents::item_info(
         &state.agent_client,
@@ -366,7 +362,7 @@ async fn agent_modal(
             // Find the specific agent's data
             if let Some(agent_item_with_status) = agent_items_with_status
                 .iter()
-                .find(|a| a.agent.name == query.agent_name)
+                .find(|a| a.agent.name == payload.agent_name)
             {
                 // Collect all unique item IDs and find max sizes
                 let mut all_item_ids = std::collections::HashSet::new();
@@ -415,7 +411,7 @@ async fn agent_modal(
                 context.insert("item_path", &item_path_parts);
             } else {
                 // Agent not found, insert empty data
-                let error_msg = format!("Agent '{}' not found", query.agent_name);
+                let error_msg = format!("Agent '{}' not found", payload.agent_name);
                 context.insert("error", &error_msg);
             }
         }

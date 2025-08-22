@@ -20,12 +20,20 @@
                                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
                             </svg>
                             <button class="btn btn-link p-0 text-start fw-bold text-decoration-none"
-                                    hx-get="/components/agent-modal.html?agent_name={{ i.agent.name | urlencode }}&item_path={{ item_path | join(sep='%2F') | urlencode }}"
+                                    hx-post="/components/agent-modal.html"
+                                    hx-ext="json-enc"
+                                    hx-include="#agent-modal-form-{{ i.agent.name | replace(from=' ', to='-') | lower }}"
                                     hx-target="#agentModalBody"
                                     data-bs-toggle="modal"
                                     data-bs-target="#agentModal"
                                     style="border: none; background: none; color: var(--primary-color);">
                                 {{ i.agent.name }}
+                                <form id="agent-modal-form-{{ i.agent.name | replace(from=' ', to='-') | lower }}" style="display: none;">
+                                    <input type="hidden" name="agent_name" value="{{ i.agent.name }}">
+                                    {% for path_item in item_path %}
+                                    <input type="hidden" name="item_path" value="{{ path_item }}">
+                                    {% endfor %}
+                                </form>
                             </button>
                         </div>
 

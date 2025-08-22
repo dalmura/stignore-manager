@@ -10,8 +10,8 @@ use tera::{Context, Result as TeraResult, Tera, Value};
 
 use axum::extract::FromRef;
 use axum::{Router, routing::get};
-use tower_http::services::{ServeDir, ServeFile};
 use tower_http::compression::CompressionLayer;
+use tower_http::services::{ServeDir, ServeFile};
 
 type AppEngine = Engine<Tera>;
 
