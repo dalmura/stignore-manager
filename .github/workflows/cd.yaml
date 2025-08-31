@@ -104,7 +104,7 @@ jobs:
             ghcr.io/dalmura/stignore-agent
 
       - name: Build and push manager
-        id: docker_build
+        id: docker_build_manager
         uses: docker/build-push-action@v6
         with:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
@@ -114,7 +114,7 @@ jobs:
           target: manager
 
       - name: Build and push agent
-        id: docker_build
+        id: docker_build_agent
         uses: docker/build-push-action@v6
         with:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
