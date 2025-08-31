@@ -95,7 +95,6 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
-          tags: ${{ steps.meta_manager.outputs.tags }}
           tags: |
             ghcr.io/dalmura/stignore-manager:latest
             ghcr.io/dalmura/stignore-manager:v${{ needs.release.outputs.version_manager }}
