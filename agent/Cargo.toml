@@ -1,0 +1,17 @@
+[package]
+name = "stignore-agent"
+version = "1.0.8"
+edition = "2021"
+authors = ["Michael Robbins"]
+
+[dependencies]
+stignore-lib = { path = "../lib" }
+axum = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+axum-test = "17.3.0"
+tempfile = "3.15.0"

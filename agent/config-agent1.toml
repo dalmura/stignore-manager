@@ -1,0 +1,15 @@
+[agent]
+port = 9001
+name = "Agent 1"
+base_path = "/tmp/media/agent1"
+api_key = "550e8400-e29b-41d4-a716-446655440000"
+
+[[categories]]
+id = "movies"
+name = "Movies"
+relative_path = "movies"
+
+[[categories]]
+id = "tv"
+name = "TV Shows"
+relative_path = "tv"

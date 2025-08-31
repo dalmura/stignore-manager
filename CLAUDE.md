@@ -1,21 +1,22 @@
-# stignore manager
+# stignore System Overview
 
-A distributed Rust-based application for managing `.stignore` files across multiple locations through a web interface and HTTP API agents.
+A distributed Rust-based system for managing `.stignore` files across multiple locations through a web interface and HTTP API agents.
 
 ## Architecture
 
-This is a Rust workspace containing three crates:
+This is a **Rust workspace** containing three complementary crates:
 
-### stignore-lib/
-**Purpose**: Shared library containing common types, configuration structures, and utilities
+### lib/
+**Purpose**: Shared library containing common types, configuration structures, and utilities used by both agent and manager
 
 **Key Components**:
 - `ItemGroup` data structure for hierarchical filesystem representation
-- Configuration loading for both agent and manager
-- Shared API request/response types
-- Error handling and serialization
+- Configuration loading functions (`load_agent_config`, `load_manager_config`)
+- Shared API request/response types for agent communication
+- Error handling (`ConfigError`) and serialization support
+- Type definitions for agent/manager communication protocols
 
-### stignore-agent/
+### agent/
 **Purpose**: HTTP API server that provides filesystem access and `.stignore` file management for a specific location
 
 **Key Features**:
@@ -30,7 +31,7 @@ This is a Rust workspace containing three crates:
 - `POST /api/v1/items` - Get item information by path
 - `POST /api/v1/ignore` - Add items to `.stignore` files
 
-### stignore-manager/
+### manager/
 **Purpose**: Web-based aggregation service that manages multiple agents and provides a unified interface
 
 **Key Features**:
@@ -40,6 +41,8 @@ This is a Rust workspace containing three crates:
 - HTMX-powered dynamic web interface
 - Tera templating system
 
+**Architecture**: Axum web server that proxies requests to configured agents and presents consolidated results
+
 ## Development Workflow
 
 ### Workspace Commands
@@ -47,25 +50,27 @@ This is a Rust workspace containing three crates:
 # Build everything
 cargo build
 
-# Build specific binary
+# Build specific binaries
 cargo build --bin stignore-agent
 cargo build --bin stignore-manager
 
 # Run tests for entire workspace
 cargo test
 
-# Linting and formatting
+# Linting and formatting (workspace-wide)
 cargo fmt
 cargo clippy --all-targets --all-features
 ```
 
 ### Running the System
 ```bash
-# Run agent with config
-cargo run --bin stignore-agent stignore-agent/config.toml
+# Start Agents
+cargo run --bin stignore-agent agent/config.toml
 
-# Run manager with config
-cargo run --bin stignore-manager stignore-manager/config.toml
+# Start Manager  
+cargo run --bin stignore-manager manager/config.toml
+
+# Access UI: Visit manager web interface to browse filesystem data from all agents
 ```
 
 ### Binary Locations
@@ -76,7 +81,7 @@ After building, binaries are located at:
 ## Configuration
 
 ### Agent Configuration
-Located in `stignore-agent/config*.toml`:
+Located in `agent/config*.toml` - configured via TOML files specifying port, name, api_key, and categories with filesystem paths:
 ```toml
 [agent]
 port = 3000
@@ -91,7 +96,7 @@ relative_path = "movies/"
 ```
 
 ### Manager Configuration
-Located in `stignore-manager/config.toml`:
+Located in `manager/config.toml` - configured with manager port and list of agent hostnames/ports with matching API keys:
 ```toml
 [manager]
 port = 8000
@@ -106,10 +111,17 @@ api_key = "550e8400-e29b-41d4-a716-446655440000"
 
 ## Security
 - API key authentication secures all communication between manager and agents
-- Uses `X-API-Key` header with UUID-format keys
+- Uses `X-API-Key` header with UUID-format keys (e.g., `550e8400-e29b-41d4-a716-446655440000`)
 - Each agent must have a matching API key in both agent and manager configurations
 
 ## Use Cases
 - Managing `.stignore` files across multiple project locations
-- Centralized view of filesystem structures from different sources
+- Centralized view of filesystem structures from different sources  
 - Bulk ignore file operations across distributed repositories
+
+## Shared Library Benefits
+- **Code Reuse**: Common types, config parsing, and utilities shared between agent and manager
+- **Type Safety**: Consistent API contracts enforced at compile time
+- **Maintenance**: Single source of truth for data structures and protocols
+- **Testing**: Unified test suite with shared test utilities
+- **Versioning**: Coordinated releases of all components

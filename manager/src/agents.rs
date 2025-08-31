@@ -1,7 +1,6 @@
-use crate::config::Agent;
-use crate::types::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use stignore_lib::*;
 
 fn set_copy_count_recursive(item: &mut ItemGroup, count: u8) {
     item.copy_count = count;

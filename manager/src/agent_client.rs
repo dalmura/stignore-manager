@@ -2,8 +2,7 @@ use reqwest::{Client, Method};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use crate::config::Agent;
-use crate::types::*;
+use stignore_lib::*;
 
 #[derive(Debug)]
 pub enum AgentError {
@@ -133,7 +132,7 @@ impl AgentClient {
     pub async fn get_categories(
         &self,
         agent: &Agent,
-    ) -> Result<crate::types::AgentCategoryListingResponse, AgentError> {
+    ) -> Result<AgentCategoryListingResponse, AgentError> {
         tracing::info!("Getting categories from agent '{}'", agent.name);
         self.make_request::<(), _>(agent, "categories", Method::GET, None)
             .await
@@ -143,8 +142,8 @@ impl AgentClient {
     pub async fn get_item_info(
         &self,
         agent: &Agent,
-        request: &crate::types::AgentItemInfoRequest,
-    ) -> Result<crate::types::AgentItemInfoResponse, AgentError> {
+        request: &AgentItemInfoRequest,
+    ) -> Result<AgentItemInfoResponse, AgentError> {
         tracing::info!(
             "Getting item info from agent '{}' for path: {:?}",
             agent.name,

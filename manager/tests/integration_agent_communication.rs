@@ -2,6 +2,7 @@ mod common;
 
 use common::*;
 use std::time::Duration;
+use stignore_lib::*;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -25,7 +26,7 @@ async fn test_agent_item_info_success() {
     let config = create_test_config_with_mock_server(&mock_server.uri());
     let client = stignore_manager::agent_client::AgentClient::with_timeout(5);
 
-    let request = stignore_manager::types::AgentItemInfoRequest {
+    let request = AgentItemInfoRequest {
         item_path: vec!["Action".to_string(), "movie.mkv".to_string()],
     };
 
@@ -42,7 +43,7 @@ async fn test_agent_ignore_item_success() {
     let config = create_test_config_with_mock_server(&mock_server.uri());
     let client = stignore_manager::agent_client::AgentClient::with_timeout(5);
 
-    let request = stignore_manager::types::AgentIgnoreRequest {
+    let request = AgentIgnoreRequest {
         category_id: "Movies".to_string(),
         folder_path: vec!["Action".to_string(), "movie.mkv".to_string()],
     };
@@ -61,7 +62,7 @@ async fn test_agent_timeout_handling() {
         .respond_with(
             ResponseTemplate::new(200)
                 .set_delay(Duration::from_secs(10)) // 10 second delay
-                .set_body_json(&create_mock_category_response()),
+                .set_body_json(create_mock_category_response()),
         )
         .mount(&mock_server)
         .await;
@@ -151,23 +152,23 @@ async fn test_multi_agent_aggregation_success() {
     Mock::given(method("GET"))
         .and(path("/api/v1/categories"))
         .and(header("X-API-Key", "test-key-2"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(&create_mock_category_response()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(create_mock_category_response()))
         .mount(&mock_server2)
         .await;
 
-    let config = stignore_manager::config::Data {
-        manager: stignore_manager::config::ManagerConfig {
+    let config = ManagerData {
+        manager: ManagerConfig {
             port: 8080,
             minimum_copies: 2,
             agent_timeout_seconds: 5,
         },
         agents: vec![
-            stignore_manager::config::Agent {
+            Agent {
                 name: "agent-1".to_string(),
                 hostname: mock_server1.uri().replace("http://", ""),
                 api_key: "test-key-1".to_string(),
             },
-            stignore_manager::config::Agent {
+            Agent {
                 name: "agent-2".to_string(),
                 hostname: mock_server2.uri().replace("http://", ""),
                 api_key: "test-key-2".to_string(),
@@ -195,19 +196,19 @@ async fn test_agent_partial_failure_handling() {
         .mount(&mock_server_bad)
         .await;
 
-    let config = stignore_manager::config::Data {
-        manager: stignore_manager::config::ManagerConfig {
+    let config = ManagerData {
+        manager: ManagerConfig {
             port: 8080,
             minimum_copies: 2,
             agent_timeout_seconds: 5,
         },
         agents: vec![
-            stignore_manager::config::Agent {
+            Agent {
                 name: "good-agent".to_string(),
                 hostname: mock_server_good.uri().replace("http://", ""),
                 api_key: "test-key-1".to_string(),
             },
-            stignore_manager::config::Agent {
+            Agent {
                 name: "bad-agent".to_string(),
                 hostname: mock_server_bad.uri().replace("http://", ""),
                 api_key: "test-key-1".to_string(),

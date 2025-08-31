@@ -1,15 +1,15 @@
 use axum::{
-    Json, Router,
     extract::{Query, State},
     response::IntoResponse,
     routing::{get, post},
+    Json, Router,
 };
 
 use crate::agents;
-use crate::types::*;
 use axum_template::{Key, RenderHtml};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use stignore_lib::*;
 
 use super::AppState;
 
@@ -142,7 +142,7 @@ struct DeleteItemResponse {
 
 #[derive(Serialize, Debug)]
 struct AgentItemWithStatus {
-    agent: crate::config::Agent,
+    agent: Agent,
     item: ItemGroup,
     sync_status: String,
     ignored: bool,
@@ -175,7 +175,7 @@ fn collect_all_item_ids(item_group: &ItemGroup) -> HashSet<String> {
 
 async fn check_ignored_status_bulk(
     agent_client: &crate::agent_client::AgentClient,
-    agent_items: &[(crate::config::Agent, ItemGroup)],
+    agent_items: &[(Agent, ItemGroup)],
     item_path: &[String],
 ) -> std::collections::HashMap<String, bool> {
     let mut results = std::collections::HashMap::new();
@@ -234,7 +234,7 @@ async fn check_ignored_status_bulk(
 
 async fn calculate_sync_status(
     agent_client: &crate::agent_client::AgentClient,
-    agent_items: &[(crate::config::Agent, ItemGroup)],
+    agent_items: &[(Agent, ItemGroup)],
     item_path: &[String],
 ) -> Vec<AgentItemWithStatus> {
     // Collect all unique item IDs from all agents (including nested items)

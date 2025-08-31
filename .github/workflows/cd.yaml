@@ -12,15 +12,23 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+
       - uses: SebRollen/toml-action@v1.2.0
-        id: version
+        id: version_manager
         with:
-          file: 'Cargo.toml'
+          file: 'manager/Cargo.toml'
           field: 'package.version'
 
+      - uses: SebRollen/toml-action@v1.2.0
+        id: version_agent
+        with:
+          file: 'agent/Cargo.toml'
+          field: 'package.version'
+
+      # Overall tagging follows the managers package version
       - id: tag_check
         run: |
-          [[ $(git tag | grep "v${{ steps.version.outputs.value }}") != '' ]]
+          [[ $(git tag | grep "v${{ steps.version_manager.outputs.value }}") != '' ]]
 
       # Only create a release when the above version isn't already tagged
       # aka a new release
@@ -29,13 +37,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: v${{ steps.version.outputs.value }}
-          name: Release v${{ steps.version.outputs.value }}
+          tag_name: v${{ steps.version_manager.outputs.value }}
+          name: Release v${{ steps.version_manager.outputs.value }}
           generate_release_notes: true
 
     outputs:
       tag_check: ${{ steps.tag_check.conclusion }}
-      version: ${{ steps.version.outputs.value }}
+      version_manager: ${{ steps.version_manager.outputs.value }}
+      version_agent: ${{ steps.version_agent.outputs.value }}
       release_upload_url: ${{ steps.create_release.outputs.upload_url }}
 
   build:
@@ -45,8 +54,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+
       - name: Build
         run: cargo build --release --all-features
+
       - name: upload release binary
         if: ${{ success() }}
         id: upload_release_binary
@@ -54,7 +65,10 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: v${{ needs.release.outputs.version }}
-          files: ./target/release/stignore-manager
+          files: |
+            ./target/release/stignore-manager
+            ./target/release/stignore-agent
+
   build_container:
     runs-on: ubuntu-latest
     needs: release
@@ -75,18 +89,36 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
+      - name: Extract manager metadata (tags, labels) for Docker
+        id: meta_manager
         uses: docker/metadata-action@v5
         with:
           images: |
             ghcr.io/dalmura/stignore-manager
 
-      - name: Build and push
+      - name: Extract agent metadata (tags, labels) for Docker
+        id: meta_agent
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/dalmura/stignore-agent
+
+      - name: Build and push manager
         id: docker_build
         uses: docker/build-push-action@v6
         with:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta_manager.outputs.tags }}
+          labels: ${{ steps.meta_manager.outputs.labels }}
+          target: manager
+
+      - name: Build and push agent
+        id: docker_build
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          tags: ${{ steps.meta_agent.outputs.tags }}
+          labels: ${{ steps.meta_agent.outputs.labels }}
+          target: agent

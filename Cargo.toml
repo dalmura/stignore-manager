@@ -1,26 +1,19 @@
-[package]
-name = "stignore-manager"
-version = "1.2.1"
-edition = "2024"
-authors = ["Michael Robbins"]
+[workspace]
+members = ["lib", "agent", "manager"]
+resolver = "2"
 
-[dependencies]
-axum = { version = "0.7.7", features = ["macros"] }
-axum-template = { version = "2.4.0", features = ["tera"] }
+[workspace.dependencies]
+axum = "0.8.4"
 serde = { version = "1.0.214", features = ["derive"] }
-tokio = { version = "1.41.1", features = ["rt-multi-thread", "net", "macros", "signal"] }
+tokio = { version = "1.41.1", features = ["full"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing = "0.1.40"
-toml = "0.8.19"
+toml = "0.9.5"
+axum-template = { version = "3.0.0", features = ["tera"] }
 tera = "1.20.0"
 tower-http = { version = "0.6.1", features = ["fs", "compression-full"] }
 reqwest = { version = "0.12.9", features = ["json"] }
 base64 = "0.22"
-
-[dev-dependencies]
-tokio-test = "0.4"
 serde_json = "1.0"
-axum-test = "15.0"
-wiremock = "0.6"
-tempfile = "3.0"
-tower = { version = "0.4", features = ["util"] }
+
+

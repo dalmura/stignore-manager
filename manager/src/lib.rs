@@ -3,13 +3,12 @@ pub mod agents;
 pub mod components;
 pub mod config;
 pub mod pages;
-pub mod types;
 
 use axum_template::engine::Engine;
 use tera::{Context, Result as TeraResult, Tera, Value};
 
 use axum::extract::FromRef;
-use axum::{Router, routing::get};
+use axum::{routing::get, Router};
 use tower_http::compression::CompressionLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
@@ -19,7 +18,7 @@ type AppEngine = Engine<Tera>;
 pub struct AppState {
     pub engine: AppEngine,
     pub context: Context,
-    pub config: config::Data,
+    pub config: stignore_lib::ManagerData,
     pub agent_client: agent_client::AgentClient,
 }
 

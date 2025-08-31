@@ -108,7 +108,7 @@ async fn test_delete_item_endpoint() {
     Mock::given(method("POST"))
         .and(path("/api/v1/delete"))
         .and(header("X-API-Key", "test-key-1"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(&json!({
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "success": true,
             "message": "Item deleted successfully"
         })))
@@ -244,7 +244,7 @@ async fn test_full_user_workflow_integration() {
     // Step 3: Load dynamic items for level 2 (need parent_path which should be base64 encoded)
     let response = server
         .get("/components/dynamic-items.html")
-        .add_query_params(&[
+        .add_query_params([
             ("parent_id", "Movies"),
             ("parent_path", "aWRfTW92aWVz"),
             ("level", "2"),

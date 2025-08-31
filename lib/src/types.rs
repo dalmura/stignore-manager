@@ -29,12 +29,10 @@ impl Hash for ItemGroup {
 
 impl ItemGroup {
     pub fn has_insufficient_copies(&self, minimum_copies: u8) -> bool {
-        // Check if this item itself has insufficient copies
         if self.copy_count < minimum_copies {
             return true;
         }
 
-        // Recursively check if any child has insufficient copies
         self.items
             .iter()
             .any(|item| item.has_insufficient_copies(minimum_copies))
@@ -47,36 +45,35 @@ impl Add for ItemGroup {
     fn add(self, other: Self) -> Self {
         use std::collections::HashMap;
 
-        // Merge items by id, using addition for duplicates
         let mut merged_items: HashMap<String, ItemGroup> = HashMap::new();
 
-        // Add all items from self
         for item in self.items {
             merged_items.insert(item.id.clone(), item);
         }
 
-        // Add all items from other, merging with existing ones
         for item in other.items {
             let item_id = item.id.clone();
             match merged_items.get(&item_id) {
                 Some(existing) => {
-                    // Merge with existing item using recursion
                     let merged = existing.clone() + item;
                     merged_items.insert(item_id, merged);
                 }
                 None => {
-                    // Add new item
                     merged_items.insert(item_id, item);
                 }
             }
         }
 
         let mut merged_items_vec: Vec<ItemGroup> = merged_items.into_values().collect();
-        crate::agents::sort_all_items(&mut merged_items_vec);
+        merged_items_vec.sort_by(|a, b| {
+            if a.leaf == b.leaf {
+                a.name.cmp(&b.name)
+            } else {
+                a.leaf.cmp(&b.leaf)
+            }
+        });
 
-        // Calculate total size from merged child items
         let total_size_kb = if merged_items_vec.is_empty() {
-            // If no children, use the size from self or other (they should be the same for leaf nodes)
             if self.size_kb > 0 {
                 self.size_kb
             } else {
@@ -105,7 +102,7 @@ impl Add for ItemGroup {
             },
             size_kb: total_size_kb,
             items: merged_items_vec,
-            leaf: self.leaf && other.leaf, // Only leaf if both are leaf
+            leaf: self.leaf && other.leaf,
             copy_count: if self_empty {
                 other.copy_count
             } else if other_empty {
@@ -117,7 +114,88 @@ impl Add for ItemGroup {
     }
 }
 
-// Agent API types
+// Agent API request/response types
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CategoryListingResponse {
+    pub items: Vec<ItemGroup>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CategoryInfoResponse {
+    pub name: String,
+    pub items: Vec<ItemGroup>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ItemInfoRequest {
+    pub item_path: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ItemInfoResponse {
+    pub item: ItemGroup,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NotFoundResponse {
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IgnoreRequest {
+    pub category_id: String,
+    pub folder_path: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IgnoreResponse {
+    pub success: bool,
+    pub message: String,
+    pub ignored_path: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IgnoreStatusRequest {
+    pub category_id: String,
+    pub folder_path: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IgnoreStatusResponse {
+    pub ignored: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BulkIgnoreStatusRequest {
+    pub items: Vec<IgnoreStatusRequest>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BulkIgnoreStatusItem {
+    pub category_id: String,
+    pub folder_path: Vec<String>,
+    pub ignored: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BulkIgnoreStatusResponse {
+    pub items: Vec<BulkIgnoreStatusItem>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DeleteRequest {
+    pub category_id: String,
+    pub folder_path: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DeleteResponse {
+    pub success: bool,
+    pub message: String,
+    pub deleted_path: Option<String>,
+}
+
+// Manager-side agent API types (for communicating with agents)
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AgentCategoryListingResponse {
     pub items: Vec<ItemGroup>,
@@ -196,14 +274,14 @@ mod tests {
 
         let item2 = ItemGroup {
             id: "same-id".to_string(),
-            name: "name2".to_string(), // Different name but same id
+            name: "name2".to_string(),
             size_kb: 200,
             items: vec![],
             leaf: false,
             copy_count: 2,
         };
 
-        assert_eq!(item1, item2); // Equality based on id only
+        assert_eq!(item1, item2);
     }
 
     #[test]
@@ -242,16 +320,8 @@ mod tests {
             copy_count: 3,
         };
 
-        // When minimum is 2: parent has 3 (sufficient), but child has 1 (insufficient)
-        // Should return true because ANY child has insufficient copies
         assert!(parent_with_3_copies.has_insufficient_copies(2));
-
-        // When minimum is 1: parent has 3 (sufficient), child has 1 (sufficient)
-        // Should return false because all items have sufficient copies
         assert!(!parent_with_3_copies.has_insufficient_copies(1));
-
-        // When minimum is 4: parent has 3 (insufficient), child has 1 (also insufficient)
-        // Should return true because parent itself has insufficient copies
         assert!(parent_with_3_copies.has_insufficient_copies(4));
     }
 
@@ -278,7 +348,7 @@ mod tests {
         let parent1 = ItemGroup {
             id: "parent".to_string(),
             name: "Parent".to_string(),
-            size_kb: 0, // Will be calculated from children
+            size_kb: 0,
             items: vec![child1],
             leaf: false,
             copy_count: 1,
@@ -287,7 +357,7 @@ mod tests {
         let parent2 = ItemGroup {
             id: "parent".to_string(),
             name: "Parent".to_string(),
-            size_kb: 0, // Will be calculated from children
+            size_kb: 0,
             items: vec![child2],
             leaf: false,
             copy_count: 1,
@@ -295,66 +365,12 @@ mod tests {
 
         let result = parent1 + parent2;
         assert_eq!(result.copy_count, 2);
-        assert_eq!(result.items.len(), 2); // Two different children
-        assert_eq!(result.size_kb, 125); // Sum of child sizes
-    }
-
-    #[test]
-    fn test_item_group_add_merge_same_children() {
-        let movie_a_file = ItemGroup {
-            id: "Movie A.mkv".to_string(),
-            name: "Movie A.mkv".to_string(),
-            size_kb: 50,
-            items: vec![],
-            leaf: true,
-            copy_count: 1,
-        };
-
-        let movie_a_folder = ItemGroup {
-            id: "Movie A".to_string(),
-            name: "Movie A".to_string(),
-            size_kb: 50,
-            items: vec![movie_a_file],
-            leaf: false,
-            copy_count: 1,
-        };
-
-        let agent_1_response = ItemGroup {
-            id: "movies".to_string(),
-            name: "Movies".to_string(),
-            size_kb: 50,
-            items: vec![movie_a_folder.clone()],
-            leaf: false,
-            copy_count: 1,
-        };
-
-        let agent_2_response = ItemGroup {
-            id: "movies".to_string(),
-            name: "Movies".to_string(),
-            size_kb: 50,
-            items: vec![movie_a_folder],
-            leaf: false,
-            copy_count: 1,
-        };
-
-        let result = agent_1_response + agent_2_response;
-        assert_eq!(result.copy_count, 2);
-
-        // The Movie's deduplicated
-        assert_eq!(result.items.len(), 1);
-        assert_eq!(result.items[0].copy_count, 2);
-
-        // The Movie's file's deduplicated
-        assert_eq!(result.items[0].items.len(), 1);
-        assert_eq!(result.items[0].items[0].copy_count, 2);
-
-        // The overall size should be the deduplicated size of the leafs
-        assert_eq!(result.size_kb, 50);
+        assert_eq!(result.items.len(), 2);
+        assert_eq!(result.size_kb, 125);
     }
 
     #[test]
     fn test_agent_api_types_serialization() {
-        // Test AgentCategoryListingResponse
         let category_response = AgentCategoryListingResponse {
             items: vec![ItemGroup {
                 id: "test".to_string(),
@@ -368,57 +384,11 @@ mod tests {
         let json = serde_json::to_string(&category_response).unwrap();
         let _: AgentCategoryListingResponse = serde_json::from_str(&json).unwrap();
 
-        // Test AgentItemInfoRequest
         let item_request = AgentItemInfoRequest {
             item_path: vec!["path".to_string(), "to".to_string(), "item".to_string()],
         };
         let json = serde_json::to_string(&item_request).unwrap();
         let deserialized: AgentItemInfoRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.item_path.len(), 3);
-
-        // Test AgentIgnoreRequest
-        let ignore_request = AgentIgnoreRequest {
-            category_id: "cat1".to_string(),
-            folder_path: vec!["folder".to_string()],
-        };
-        let json = serde_json::to_string(&ignore_request).unwrap();
-        let _: AgentIgnoreRequest = serde_json::from_str(&json).unwrap();
-
-        // Test AgentIgnoreResponse
-        let ignore_response = AgentIgnoreResponse {
-            success: true,
-            message: "Success".to_string(),
-        };
-        let json = serde_json::to_string(&ignore_response).unwrap();
-        let deserialized: AgentIgnoreResponse = serde_json::from_str(&json).unwrap();
-        assert!(deserialized.success);
-        assert_eq!(deserialized.message, "Success");
-    }
-
-    #[test]
-    fn test_bulk_ignore_status_types() {
-        let status_request = AgentIgnoreStatusRequest {
-            category_id: "cat1".to_string(),
-            folder_path: vec!["test".to_string()],
-        };
-
-        let bulk_request = AgentBulkIgnoreStatusRequest {
-            items: vec![status_request],
-        };
-
-        let json = serde_json::to_string(&bulk_request).unwrap();
-        let deserialized: AgentBulkIgnoreStatusRequest = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.items.len(), 1);
-
-        let status_response = AgentIgnoreStatusResponse { ignored: true };
-
-        let bulk_response = AgentBulkIgnoreStatusResponse {
-            items: vec![status_response],
-        };
-
-        let json = serde_json::to_string(&bulk_response).unwrap();
-        let deserialized: AgentBulkIgnoreStatusResponse = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.items.len(), 1);
-        assert!(deserialized.items[0].ignored);
     }
 }

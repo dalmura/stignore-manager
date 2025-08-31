@@ -8,22 +8,23 @@ use tera::{Context, Tera};
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use stignore_manager::{AppState, agent_client, config, humansize_filter, types::*};
+use stignore_lib::*;
+use stignore_manager::{agent_client, humansize_filter, AppState};
 
-pub fn create_test_config() -> config::Data {
-    config::Data {
-        manager: config::ManagerConfig {
+pub fn create_test_config() -> ManagerData {
+    ManagerData {
+        manager: ManagerConfig {
             port: 8080,
             minimum_copies: 2,
             agent_timeout_seconds: 5,
         },
         agents: vec![
-            config::Agent {
+            Agent {
                 name: "test-agent-1".to_string(),
                 hostname: "localhost:3001".to_string(),
                 api_key: "test-key-1".to_string(),
             },
-            config::Agent {
+            Agent {
                 name: "test-agent-2".to_string(),
                 hostname: "localhost:3002".to_string(),
                 api_key: "test-key-2".to_string(),
@@ -55,7 +56,7 @@ api_key = "test-key-2"
     temp_file
 }
 
-pub fn create_test_app_state(config: config::Data) -> AppState {
+pub fn create_test_app_state(config: ManagerData) -> AppState {
     let mut tera = Tera::new("html/**/*.html").unwrap();
     tera.register_filter("humansize", humansize_filter);
     let mut context = Context::new();
@@ -70,7 +71,7 @@ pub fn create_test_app_state(config: config::Data) -> AppState {
     }
 }
 
-pub fn create_test_app(config: config::Data) -> Router {
+pub fn create_test_app(config: ManagerData) -> Router {
     let app_state = create_test_app_state(config);
     stignore_manager::create_app(app_state)
 }
@@ -115,7 +116,7 @@ pub async fn setup_mock_agent_server() -> MockServer {
     Mock::given(method("GET"))
         .and(path("/api/v1/categories"))
         .and(header("X-API-Key", "test-key-1"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(&create_mock_category_response()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(create_mock_category_response()))
         .mount(&mock_server)
         .await;
 
@@ -123,7 +124,7 @@ pub async fn setup_mock_agent_server() -> MockServer {
     Mock::given(method("POST"))
         .and(path("/api/v1/items"))
         .and(header("X-API-Key", "test-key-1"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(&create_mock_item_info_response()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(create_mock_item_info_response()))
         .mount(&mock_server)
         .await;
 
@@ -131,26 +132,24 @@ pub async fn setup_mock_agent_server() -> MockServer {
     Mock::given(method("POST"))
         .and(path("/api/v1/ignore"))
         .and(header("X-API-Key", "test-key-1"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(&serde_json::json!({
-                "success": true,
-                "message": "Item ignored successfully"
-            })),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "success": true,
+            "message": "Item ignored successfully"
+        })))
         .mount(&mock_server)
         .await;
 
     mock_server
 }
 
-pub fn create_test_config_with_mock_server(server_uri: &str) -> config::Data {
-    config::Data {
-        manager: config::ManagerConfig {
+pub fn create_test_config_with_mock_server(server_uri: &str) -> ManagerData {
+    ManagerData {
+        manager: ManagerConfig {
             port: 8080,
             minimum_copies: 2,
             agent_timeout_seconds: 5,
         },
-        agents: vec![config::Agent {
+        agents: vec![Agent {
             name: "test-agent-1".to_string(),
             hostname: server_uri.replace("http://", ""),
             api_key: "test-key-1".to_string(),
