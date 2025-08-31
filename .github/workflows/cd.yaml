@@ -64,7 +64,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: v${{ needs.release.outputs.version }}
+          tag_name: v${{ needs.release.outputs.version_manager }}
           files: |
             ./target/release/stignore-manager
             ./target/release/stignore-agent
@@ -89,20 +89,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract manager metadata (tags, labels) for Docker
-        id: meta_manager
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/dalmura/stignore-manager
-
-      - name: Extract agent metadata (tags, labels) for Docker
-        id: meta_agent
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/dalmura/stignore-agent
-
       - name: Build and push manager
         id: docker_build_manager
         uses: docker/build-push-action@v6
@@ -110,7 +96,9 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
           tags: ${{ steps.meta_manager.outputs.tags }}
-          labels: ${{ steps.meta_manager.outputs.labels }}
+          tags: |
+            ghcr.io/dalmura/stignore-manager:latest
+            ghcr.io/dalmura/stignore-manager:v${{ needs.release.outputs.version_manager }}
           target: manager
 
       - name: Build and push agent
@@ -119,6 +107,7 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
-          tags: ${{ steps.meta_agent.outputs.tags }}
-          labels: ${{ steps.meta_agent.outputs.labels }}
+          tags: |
+            ghcr.io/dalmura/stignore-agent:latest
+            ghcr.io/dalmura/stignore-agent:v${{ needs.release.outputs.version_agent }}
           target: agent
