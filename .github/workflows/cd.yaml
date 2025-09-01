@@ -99,6 +99,8 @@ jobs:
             ghcr.io/dalmura/stignore-manager:latest
             ghcr.io/dalmura/stignore-manager:v${{ needs.release.outputs.version_manager }}
           target: manager
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build and push agent
         id: docker_build_agent
@@ -110,3 +112,5 @@ jobs:
             ghcr.io/dalmura/stignore-agent:latest
             ghcr.io/dalmura/stignore-agent:v${{ needs.release.outputs.version_agent }}
           target: agent
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
