@@ -1,9 +1,9 @@
 use crate::filesystem;
 use axum::{
+    Json,
     extract::{Path, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
-    Json,
 };
 use std::path::PathBuf;
 use stignore_lib::*;
@@ -379,8 +379,8 @@ pub async fn post_delete(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::StatusCode;
     use axum::Router;
+    use axum::http::StatusCode;
     use axum_test::TestServer;
     use std::fs;
     use stignore_lib::{AgentConfig, AgentData, Category};
@@ -736,9 +736,10 @@ mod tests {
         response.assert_status(StatusCode::NOT_FOUND);
 
         let json: NotFoundResponse = response.json();
-        assert!(json
-            .message
-            .contains("Category ID 'invalid_category' not found"));
+        assert!(
+            json.message
+                .contains("Category ID 'invalid_category' not found")
+        );
     }
 
     // Ignore endpoint tests
@@ -837,9 +838,10 @@ mod tests {
 
         let json: IgnoreResponse = response.json();
         assert!(!json.success);
-        assert!(json
-            .message
-            .contains("Category ID 'nonexistent_id' not found"));
+        assert!(
+            json.message
+                .contains("Category ID 'nonexistent_id' not found")
+        );
     }
 
     #[tokio::test]
@@ -1142,9 +1144,10 @@ mod tests {
 
         let json: DeleteResponse = response.json();
         assert!(!json.success);
-        assert!(json
-            .message
-            .contains("Category ID 'nonexistent_id' not found"));
+        assert!(
+            json.message
+                .contains("Category ID 'nonexistent_id' not found")
+        );
         assert!(json.deleted_path.is_none());
     }
 
