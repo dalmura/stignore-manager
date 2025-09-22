@@ -24,7 +24,7 @@ fn build_unix_path_string(folder_path_components: &[String]) -> String {
     if folder_path_components.is_empty() {
         "".to_string()
     } else {
-        format!("{}", folder_path_components.join("/"))
+        folder_path_components.join("/")
     }
 }
 
@@ -216,7 +216,7 @@ fn add_to_stignore_str(
     if !ignore_content.is_empty() && !ignore_content.ends_with('\n') {
         ignore_content.push('\n');
     }
-    ignore_content.push_str(&folder_path);
+    ignore_content.push_str(folder_path);
     ignore_content.push('\n');
 
     // Write back to .stignore
