@@ -22,9 +22,9 @@ fn build_full_path(base_path: &Path, folder_path_components: &[String]) -> PathB
 /// Helper function to convert folder path components to Unix-style string for .stignore
 fn build_unix_path_string(folder_path_components: &[String]) -> String {
     if folder_path_components.is_empty() {
-        "/".to_string()
+        "".to_string()
     } else {
-        format!("/{}", folder_path_components.join("/"))
+        format!("{}", folder_path_components.join("/"))
     }
 }
 
@@ -160,13 +160,6 @@ pub fn is_path_ignored(
 fn is_path_ignored_str(category_base_path: &std::path::Path, folder_path: &str) -> bool {
     let stignore_path = category_base_path.join(".stignore");
 
-    // Normalize the path to ensure consistency
-    let normalized_path = if folder_path.starts_with('/') {
-        folder_path.to_string()
-    } else {
-        format!("/{}", folder_path)
-    };
-
     // Read .stignore file if it exists
     let ignore_content = match std::fs::read_to_string(&stignore_path) {
         Ok(content) => content,
@@ -176,7 +169,7 @@ fn is_path_ignored_str(category_base_path: &std::path::Path, folder_path: &str) 
     // Check if the path is in the ignore list
     ignore_content
         .lines()
-        .any(|line| line.trim() == normalized_path)
+        .any(|line| line.trim() == folder_path)
 }
 
 /// Adds a folder path to the .stignore file in the specified category directory.
@@ -206,23 +199,16 @@ fn add_to_stignore_str(
 ) -> StignoreResult {
     let stignore_path = category_base_path.join(".stignore");
 
-    // Ensure the path starts with '/' for consistency
-    let normalized_path = if folder_path.starts_with('/') {
-        folder_path.to_string()
-    } else {
-        format!("/{}", folder_path)
-    };
-
     // Read existing .stignore or create new content
     let mut ignore_content = std::fs::read_to_string(&stignore_path).unwrap_or_default();
 
     // Check if the path is already ignored
     if ignore_content
         .lines()
-        .any(|line| line.trim() == normalized_path)
+        .any(|line| line.trim() == folder_path)
     {
         return StignoreResult::AlreadyIgnored {
-            ignored_path: normalized_path,
+            ignored_path: folder_path.to_string(),
         };
     }
 
@@ -230,16 +216,16 @@ fn add_to_stignore_str(
     if !ignore_content.is_empty() && !ignore_content.ends_with('\n') {
         ignore_content.push('\n');
     }
-    ignore_content.push_str(&normalized_path);
+    ignore_content.push_str(&folder_path);
     ignore_content.push('\n');
 
     // Write back to .stignore
     match std::fs::write(&stignore_path, ignore_content) {
         Ok(_) => StignoreResult::Success {
-            ignored_path: normalized_path.clone(),
+            ignored_path: folder_path.to_string(),
             message: format!(
                 "Successfully added '{}' to .stignore in category '{}'",
-                normalized_path, category_name
+                folder_path, category_name
             ),
         },
         Err(err) => StignoreResult::Error {
