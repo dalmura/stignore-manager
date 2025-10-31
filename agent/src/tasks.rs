@@ -1220,4 +1220,49 @@ mod tests {
         assert!(!movie_names.contains(&&".stignore".to_string()));
         assert!(!movie_names.contains(&&".stversions".to_string()));
     }
+
+    #[tokio::test]
+    async fn test_post_ignore_with_corrupted_stignore_file() {
+        let (server, temp_dir) = setup_test_server().await;
+
+        // Create a .stignore file with invalid UTF-8 content
+        let stignore_path = temp_dir.path().join("movies").join(".stignore");
+        let invalid_utf8: Vec<u8> = vec![
+            b'M', b'o', b'v', b'i', b'e', b' ', b'1', b'\n', 0xFF, 0xFE, 0xFD, b'\n',
+        ];
+        std::fs::write(&stignore_path, invalid_utf8).unwrap();
+
+        // Try to add another movie to the ignore list
+        let request_body = IgnoreRequest {
+            category_id: MOVIES_ID.to_string(),
+            folder_path: vec!["Movie 2 (2024)".to_string()],
+        };
+
+        let response = server
+            .post("/api/v1/ignore")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&request_body)
+            .await;
+
+        // Should return error status
+        response.assert_status(StatusCode::INTERNAL_SERVER_ERROR);
+
+        let json: IgnoreResponse = response.json();
+        assert!(!json.success);
+        assert!(
+            json.message
+                .contains("Failed to read existing .stignore file")
+        );
+        assert!(json.message.contains("encoding") || json.message.contains("UTF"));
+
+        // Verify the corrupted file still exists and wasn't replaced
+        assert!(stignore_path.exists());
+        let file_content = std::fs::read(&stignore_path).unwrap();
+        assert_eq!(
+            file_content,
+            vec![
+                b'M', b'o', b'v', b'i', b'e', b' ', b'1', b'\n', 0xFF, 0xFE, 0xFD, b'\n',
+            ]
+        );
+    }
 }
