@@ -9,7 +9,7 @@ use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use stignore_lib::*;
-use stignore_manager::{agent_client, humansize_filter, AppState};
+use stignore_manager::{AppState, agent_client, humansize_filter};
 
 pub fn create_test_config() -> ManagerData {
     ManagerData {

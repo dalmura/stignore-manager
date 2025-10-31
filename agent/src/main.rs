@@ -2,6 +2,7 @@ mod filesystem;
 mod tasks;
 
 use axum::{
+    Router,
     body::Body,
     extract::State,
     http::{Request, StatusCode},
@@ -9,12 +10,11 @@ use axum::{
     response::Response,
     routing::get,
     routing::post,
-    Router,
 };
 use tracing_subscriber::fmt;
 
 use std::env;
-use stignore_lib::{load_agent_config, AgentData};
+use stignore_lib::{AgentData, load_agent_config};
 use tokio::signal;
 
 async fn auth_middleware(

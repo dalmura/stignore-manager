@@ -1,5 +1,5 @@
 use std::process::exit;
-use stignore_lib::{load_manager_config, ManagerData};
+use stignore_lib::{ManagerData, load_manager_config};
 
 pub fn load_config(filename: &str) -> ManagerData {
     match load_manager_config(filename) {

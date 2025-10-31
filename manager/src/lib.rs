@@ -8,7 +8,7 @@ use axum_template::engine::Engine;
 use tera::{Context, Result as TeraResult, Tera, Value};
 
 use axum::extract::FromRef;
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use tower_http::compression::CompressionLayer;
 use tower_http::services::{ServeDir, ServeFile};
 

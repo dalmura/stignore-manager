@@ -1,8 +1,8 @@
 use axum::{
+    Json, Router,
     extract::{Query, State},
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
 
 use crate::agents;

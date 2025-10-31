@@ -1,9 +1,9 @@
 use crate::filesystem;
 use axum::{
+    Json,
     extract::{Path, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
-    Json,
 };
 use std::path::PathBuf;
 use stignore_lib::*;
@@ -379,8 +379,8 @@ pub async fn post_delete(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::StatusCode;
     use axum::Router;
+    use axum::http::StatusCode;
     use axum_test::TestServer;
     use std::fs;
     use stignore_lib::{AgentConfig, AgentData, Category};
@@ -736,9 +736,10 @@ mod tests {
         response.assert_status(StatusCode::NOT_FOUND);
 
         let json: NotFoundResponse = response.json();
-        assert!(json
-            .message
-            .contains("Category ID 'invalid_category' not found"));
+        assert!(
+            json.message
+                .contains("Category ID 'invalid_category' not found")
+        );
     }
 
     // Ignore endpoint tests
@@ -778,7 +779,7 @@ mod tests {
 
         // Pre-create .stignore file with the movie directory
         let stignore_path = temp_dir.path().join("movies").join(".stignore");
-        std::fs::write(&stignore_path, "/Movie 1 (2023)\n").unwrap();
+        std::fs::write(&stignore_path, "Movie 1 (2023)\n").unwrap();
 
         let request_body = IgnoreRequest {
             category_id: MOVIES_ID.to_string(),
@@ -837,9 +838,10 @@ mod tests {
 
         let json: IgnoreResponse = response.json();
         assert!(!json.success);
-        assert!(json
-            .message
-            .contains("Category ID 'nonexistent_id' not found"));
+        assert!(
+            json.message
+                .contains("Category ID 'nonexistent_id' not found")
+        );
     }
 
     #[tokio::test]
@@ -862,14 +864,14 @@ mod tests {
         let json: IgnoreResponse = response.json();
         assert!(json.success);
         assert!(json.ignored_path.is_some());
-        assert_eq!(json.ignored_path.unwrap(), "/Non-existent Movie (2025)");
+        assert_eq!(json.ignored_path.unwrap(), "Non-existent Movie (2025)");
         assert!(json.message.contains("Successfully added"));
 
         // Verify .stignore file was created with the non-existent folder
         let stignore_path = temp_dir.path().join("movies").join(".stignore");
         assert!(stignore_path.exists());
         let content = std::fs::read_to_string(&stignore_path).unwrap();
-        assert!(content.contains("/Non-existent Movie (2025)"));
+        assert!(content.contains("Non-existent Movie (2025)"));
     }
 
     // Ignore status endpoint tests
@@ -899,7 +901,7 @@ mod tests {
 
         // Pre-create .stignore file with the movie directory
         let stignore_path = temp_dir.path().join("movies").join(".stignore");
-        std::fs::write(&stignore_path, "/Movie 1 (2023)\n").unwrap();
+        std::fs::write(&stignore_path, "Movie 1 (2023)\n").unwrap();
 
         let request_body = IgnoreStatusRequest {
             category_id: MOVIES_ID.to_string(),
@@ -963,7 +965,7 @@ mod tests {
 
         // Pre-create .stignore file with a movie that doesn't exist on disk
         let stignore_path = temp_dir.path().join("movies").join(".stignore");
-        std::fs::write(&stignore_path, "/Non-existent Movie (2025)\n").unwrap();
+        std::fs::write(&stignore_path, "Non-existent Movie (2025)\n").unwrap();
 
         let request_body = IgnoreStatusRequest {
             category_id: MOVIES_ID.to_string(),
@@ -1008,7 +1010,7 @@ mod tests {
 
         // Pre-create .stignore file with one ignored item
         let stignore_path = temp_dir.path().join("movies").join(".stignore");
-        std::fs::write(&stignore_path, "/Movie 1 (2023)\n").unwrap();
+        std::fs::write(&stignore_path, "Movie 1 (2023)\n").unwrap();
 
         // Test with multiple items - some ignored, some not, some invalid
         let request_body = BulkIgnoreStatusRequest {
@@ -1076,7 +1078,7 @@ mod tests {
         let json: DeleteResponse = response.json();
         assert!(json.success);
         assert!(json.deleted_path.is_some());
-        assert_eq!(json.deleted_path.unwrap(), "/Movie 1 (2023)");
+        assert_eq!(json.deleted_path.unwrap(), "Movie 1 (2023)");
         assert!(json.message.contains("Successfully deleted"));
     }
 
@@ -1142,9 +1144,10 @@ mod tests {
 
         let json: DeleteResponse = response.json();
         assert!(!json.success);
-        assert!(json
-            .message
-            .contains("Category ID 'nonexistent_id' not found"));
+        assert!(
+            json.message
+                .contains("Category ID 'nonexistent_id' not found")
+        );
         assert!(json.deleted_path.is_none());
     }
 
@@ -1171,7 +1174,7 @@ mod tests {
         let json: DeleteResponse = response.json();
         assert!(json.success);
         assert!(json.deleted_path.is_some());
-        assert_eq!(json.deleted_path.unwrap(), "/test-file.txt");
+        assert_eq!(json.deleted_path.unwrap(), "test-file.txt");
         assert!(json.message.contains("Successfully deleted"));
 
         // Verify file was actually deleted
