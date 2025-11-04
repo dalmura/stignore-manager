@@ -13,14 +13,22 @@
 }
 
 /* Global styling */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
 body {
   background-color: var(--light-bg);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'sans-serif';
-  padding-bottom: 80px; /* Space for fixed footer */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Enhanced navbar */
 .navbar {
+  flex-shrink: 0;
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%) !important;
   box-shadow: var(--card-shadow);
   border-bottom: 3px solid var(--primary-dark);
@@ -67,7 +75,18 @@ body {
 }
 
 /* Main content container */
-.container-fluid {
+body > .container-fluid {
+  flex: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1rem 0.75rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0; /* Important for flex children to scroll */
+}
+
+/* Nested container-fluid should not have flex properties */
+.container-fluid .container-fluid {
   max-width: 1400px;
   margin: 0 auto;
   padding: 1rem 0.75rem;
@@ -397,4 +416,86 @@ p {
 .btn:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);
+}
+
+/* Scrollbar styling for main content area */
+body > .container-fluid {
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-color) #e5e7eb;
+}
+
+body > .container-fluid::-webkit-scrollbar {
+  width: 8px;
+}
+
+body > .container-fluid::-webkit-scrollbar-track {
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+body > .container-fluid::-webkit-scrollbar-thumb {
+  background: var(--primary-color);
+  border-radius: 4px;
+}
+
+body > .container-fluid::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-dark);
+}
+
+/* Scrollable info panel */
+footer #info-panel {
+  max-height: 400px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-color) #e5e7eb;
+}
+
+/* Webkit scrollbar styling for info panel */
+footer #info-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+footer #info-panel::-webkit-scrollbar-track {
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+footer #info-panel::-webkit-scrollbar-thumb {
+  background: var(--primary-color);
+  border-radius: 4px;
+}
+
+footer #info-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-dark);
+}
+
+/* Footer layout */
+footer {
+  flex-shrink: 0;
+  position: relative !important; /* Override fixed-bottom */
+  bottom: auto !important;
+  width: 100%;
+  max-height: 50vh; /* Footer takes max 50% of viewport */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-color) #e5e7eb;
+}
+
+footer::-webkit-scrollbar {
+  width: 8px;
+}
+
+footer::-webkit-scrollbar-track {
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+footer::-webkit-scrollbar-thumb {
+  background: var(--primary-color);
+  border-radius: 4px;
+}
+
+footer::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-dark);
 }
