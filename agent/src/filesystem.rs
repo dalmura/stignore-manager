@@ -199,14 +199,41 @@ fn add_to_stignore_str(
 ) -> StignoreResult {
     let stignore_path = category_base_path.join(".stignore");
 
-    // Read existing .stignore or create new content
-    let mut ignore_content = std::fs::read_to_string(&stignore_path).unwrap_or_default();
+    // Read existing .stignore or handle new file creation
+    let mut ignore_content = if stignore_path.exists() {
+        match std::fs::read_to_string(&stignore_path) {
+            Ok(content) => {
+                tracing::debug!(
+                    "Successfully read .stignore file with {} bytes",
+                    content.len()
+                );
+                content
+            }
+            Err(err) => {
+                tracing::error!(
+                    "Failed to read existing .stignore file at {:?}: {}",
+                    stignore_path,
+                    err
+                );
+                return StignoreResult::Error {
+                    message: format!(
+                        "Failed to read existing .stignore file: {}. This may indicate a file encoding issue or permission problem. Please check the file manually to prevent data loss.",
+                        err
+                    ),
+                };
+            }
+        }
+    } else {
+        tracing::info!("Creating new .stignore file at {:?}", stignore_path);
+        String::new()
+    };
 
     // Check if the path is already ignored
     if ignore_content
         .lines()
         .any(|line| line.trim() == folder_path)
     {
+        tracing::debug!("Path '{}' is already in .stignore", folder_path);
         return StignoreResult::AlreadyIgnored {
             ignored_path: folder_path.to_string(),
         };
@@ -220,17 +247,31 @@ fn add_to_stignore_str(
     ignore_content.push('\n');
 
     // Write back to .stignore
-    match std::fs::write(&stignore_path, ignore_content) {
-        Ok(_) => StignoreResult::Success {
-            ignored_path: folder_path.to_string(),
-            message: format!(
+    match std::fs::write(&stignore_path, &ignore_content) {
+        Ok(_) => {
+            tracing::info!(
                 "Successfully added '{}' to .stignore in category '{}'",
-                folder_path, category_name
-            ),
-        },
-        Err(err) => StignoreResult::Error {
-            message: format!("Failed to write .stignore file: {}", err),
-        },
+                folder_path,
+                category_name
+            );
+            StignoreResult::Success {
+                ignored_path: folder_path.to_string(),
+                message: format!(
+                    "Successfully added '{}' to .stignore in category '{}'",
+                    folder_path, category_name
+                ),
+            }
+        }
+        Err(err) => {
+            tracing::error!(
+                "Failed to write .stignore file at {:?}: {}",
+                stignore_path,
+                err
+            );
+            StignoreResult::Error {
+                message: format!("Failed to write .stignore file: {}", err),
+            }
+        }
     }
 }
 
