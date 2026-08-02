@@ -17,6 +17,9 @@ async fn test_itemlist_component_endpoint() {
     response.assert_status_ok();
     response.assert_text_contains("File Browser");
     response.assert_text_contains("Movies");
+    response.assert_text_contains("filter-pill-btn");
+    response.assert_text_contains("data-name=");
+    response.assert_text_contains("data-insufficient=");
 }
 
 #[tokio::test]

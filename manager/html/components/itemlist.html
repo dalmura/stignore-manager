@@ -1,12 +1,24 @@
 <div class="row">
     <div class="col">
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <h2 class="mb-0">File Browser</h2>
-            <div class="text-muted small">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-1">
-                    <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
-                </svg>
-                Browse and manage files across agents
+            <div class="d-flex align-items-center gap-3">
+                <h2 class="mb-0">File Browser</h2>
+                {% if items and items | length > 0 %}
+                <div class="btn-group btn-group-sm" role="group" aria-label="Filter status">
+                    <button type="button" class="btn btn-outline-secondary filter-pill-btn active" data-filter="all" onclick="setFacetFilter('all')">All Items</button>
+                    <button type="button" class="btn btn-outline-warning filter-pill-btn" data-filter="insufficient" onclick="setFacetFilter('insufficient')">⚠️ Insufficient Copies</button>
+                    <button type="button" class="btn btn-outline-success filter-pill-btn" data-filter="synced" onclick="setFacetFilter('synced')">✓ Synced</button>
+                </div>
+                {% endif %}
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span id="searchResultCount" class="badge text-bg-light border text-dark fw-normal d-none"></span>
+                <div class="text-muted small">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                        <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+                    </svg>
+                    Browse and manage files across agents
+                </div>
             </div>
         </div>
     </div>
@@ -20,6 +32,8 @@
                 id="parent-item-{{ i.safe_id }}"
                 class="d-flex justify-content-between align-items-center list-group-item list-group-item-action fade-in{% if i.has_insufficient_copies %} list-group-item-warning{% endif %}"
                 data-bs-toggle="list"
+                data-name="{{ i.name }}"
+                data-insufficient="{{ i.has_insufficient_copies }}"
                 href="#list-sub1-{{ i.safe_id }}"
                 role="tab"
                 hx-post="/components/infopanel.html"
@@ -31,7 +45,7 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-primary">
                         <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
                     </svg>
-                    <span class="fw-medium">{{ i.name }}</span>
+                    <span class="fw-medium item-title">{{ i.name }}</span>
                 </div>
                 <span class="badge text-bg-primary rounded-pill">{{ i.items | length }}</span>
                 <input type="hidden" name="item_path" value="">

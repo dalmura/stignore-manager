@@ -317,4 +317,203 @@ function clearUrlSelection() {
     url.searchParams.delete('selected');
     window.history.replaceState({}, '', url);
 }
+
+// Global Fuzzy Search & Facet Filtering Engine
+let activeFacetFilter = 'all';
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function fuzzyMatch(text, query) {
+    if (!query) return { matches: true, highlightedHTML: escapeHtml(text) };
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+
+    // Direct substring match
+    const subIdx = lowerText.indexOf(lowerQuery);
+    if (subIdx !== -1) {
+        const prefix = escapeHtml(text.substring(0, subIdx));
+        const match = escapeHtml(text.substring(subIdx, subIdx + query.length));
+        const suffix = escapeHtml(text.substring(subIdx + query.length));
+        return {
+            matches: true,
+            highlightedHTML: `${prefix}<mark class="search-highlight">${match}</mark>${suffix}`
+        };
+    }
+
+    // Subsequence fuzzy match
+    let textIdx = 0;
+    let queryIdx = 0;
+    const highlightIndices = [];
+
+    while (textIdx < text.length && queryIdx < query.length) {
+        if (lowerText[textIdx] === lowerQuery[queryIdx]) {
+            highlightIndices.push(textIdx);
+            queryIdx++;
+        }
+        textIdx++;
+    }
+
+    if (queryIdx === query.length) {
+        let result = '';
+        let currentPos = 0;
+        for (let i = 0; i < highlightIndices.length; i++) {
+            const idx = highlightIndices[i];
+            if (idx > currentPos) {
+                result += escapeHtml(text.substring(currentPos, idx));
+            }
+            result += `<mark class="search-highlight">${escapeHtml(text[idx])}</mark>`;
+            currentPos = idx + 1;
+        }
+        if (currentPos < text.length) {
+            result += escapeHtml(text.substring(currentPos));
+        }
+        return { matches: true, highlightedHTML: result };
+    }
+
+    return { matches: false, highlightedHTML: escapeHtml(text) };
+}
+
+function setFacetFilter(filterName) {
+    activeFacetFilter = filterName;
+
+    // Update filter buttons UI
+    document.querySelectorAll('.filter-pill-btn').forEach(btn => {
+        if (btn.getAttribute('data-filter') === filterName) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    applySearchAndFilter();
+}
+
+function clearSearchInput() {
+    const searchInput = document.getElementById('globalSearchInput');
+    if (searchInput) {
+        searchInput.value = '';
+        applySearchAndFilter();
+        searchInput.focus();
+    }
+}
+
+function applySearchAndFilter() {
+    const searchInput = document.getElementById('globalSearchInput');
+    const query = searchInput ? searchInput.value.trim() : '';
+
+    let totalVisible = 0;
+    let totalItems = 0;
+
+    // Process Level 1 items
+    const parentItems = document.querySelectorAll('#parentList > a');
+    parentItems.forEach(el => {
+        totalItems++;
+        const name = el.getAttribute('data-name') || el.innerText.trim();
+        const isInsufficient = el.getAttribute('data-insufficient') === 'true' || el.classList.contains('list-group-item-warning');
+
+        let passesFacet = true;
+        if (activeFacetFilter === 'insufficient') {
+            passesFacet = isInsufficient;
+        } else if (activeFacetFilter === 'synced') {
+            passesFacet = !isInsufficient;
+        }
+
+        const matchResult = fuzzyMatch(name, query);
+        const titleEl = el.querySelector('.item-title') || el.querySelector('span:not(.badge)');
+
+        if (passesFacet && matchResult.matches) {
+            el.classList.remove('d-none');
+            totalVisible++;
+            if (titleEl) {
+                titleEl.innerHTML = matchResult.highlightedHTML;
+            }
+        } else {
+            el.classList.add('d-none');
+            if (titleEl) {
+                titleEl.innerHTML = escapeHtml(name);
+            }
+        }
+    });
+
+    // Process Level 2 and Level 3 dynamic items if loaded
+    const dynamicItems = document.querySelectorAll('#sub1List a, #sub2List a');
+    dynamicItems.forEach(el => {
+        const name = el.getAttribute('data-name') || el.innerText.trim();
+        const isInsufficient = el.getAttribute('data-insufficient') === 'true' || el.classList.contains('list-group-item-warning');
+
+        let passesFacet = true;
+        if (activeFacetFilter === 'insufficient') {
+            passesFacet = isInsufficient;
+        } else if (activeFacetFilter === 'synced') {
+            passesFacet = !isInsufficient;
+        }
+
+        const matchResult = fuzzyMatch(name, query);
+        const titleEl = el.querySelector('.item-title') || el.querySelector('span:not(.badge)');
+
+        if (passesFacet && matchResult.matches) {
+            el.classList.remove('d-none');
+            if (titleEl) {
+                titleEl.innerHTML = matchResult.highlightedHTML;
+            }
+        } else {
+            el.classList.add('d-none');
+            if (titleEl) {
+                titleEl.innerHTML = escapeHtml(name);
+            }
+        }
+    });
+
+    // Update search result badge UI
+    const countBadge = document.getElementById('searchResultCount');
+    if (countBadge) {
+        if (query !== '' || activeFacetFilter !== 'all') {
+            countBadge.textContent = `Showing ${totalVisible} of ${totalItems} categories`;
+            countBadge.classList.remove('d-none');
+        } else {
+            countBadge.classList.add('d-none');
+        }
+    }
+}
+
+// Global Event Listeners for Search & Keyboard Shortcuts
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('globalSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', applySearchAndFilter);
+    }
+
+    // Keyboard Shortcuts (/ to focus search, Esc to clear)
+    document.addEventListener('keydown', function(event) {
+        const activeElement = document.activeElement;
+        const isInput = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable);
+
+        if (event.key === '/' && !isInput) {
+            event.preventDefault();
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
+        } else if (event.key === 'Escape') {
+            if (searchInput && (document.activeElement === searchInput || searchInput.value !== '' || activeFacetFilter !== 'all')) {
+                searchInput.value = '';
+                setFacetFilter('all');
+                searchInput.blur();
+            }
+        }
+    });
+
+    // Re-apply search & filters when HTMX dynamically swaps items
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        applySearchAndFilter();
+    });
+});
 </script>

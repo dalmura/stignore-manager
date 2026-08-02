@@ -22,6 +22,19 @@ async fn test_server_startup_and_basic_routes() {
 }
 
 #[tokio::test]
+async fn test_navbar_search_input_rendering() {
+    let config = create_test_config();
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let response = server.get("/").await;
+    response.assert_status_ok();
+    response.assert_text_contains("globalSearchInput");
+    response.assert_text_contains("Fuzzy search items...");
+    response.assert_text_contains("search-shortcut-kbd");
+}
+
+#[tokio::test]
 async fn test_not_found_handler() {
     let config = create_test_config();
     let app = create_test_app(config);

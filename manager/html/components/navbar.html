@@ -36,9 +36,10 @@
                     </a>
                 </li>
             </ul>
-            <form class="d-flex" role="search">
-                <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search" disabled>
-                <button class="btn btn-outline-success disabled" type="submit">Search</button>
+            <form class="d-flex search-input-group" role="search" onsubmit="event.preventDefault();">
+                <input id="globalSearchInput" class="form-control" type="search" placeholder="Fuzzy search items..." aria-label="Search">
+                <kbd class="search-shortcut-kbd">/</kbd>
+                <button id="globalSearchClear" type="button" class="search-clear-btn" aria-label="Clear search" onclick="clearSearchInput()">&times;</button>
             </form>
         </div>
     </div>
