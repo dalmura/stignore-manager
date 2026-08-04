@@ -1,15 +1,14 @@
 #![allow(dead_code)] // Test helpers are used across different test files
 
 use axum::Router;
-use axum_template::engine::Engine;
 use std::io::Write;
 use tempfile::NamedTempFile;
-use tera::{Context, Tera};
+use tera::Tera;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use stignore_lib::*;
-use stignore_manager::{AppState, agent_client, humansize_filter};
+use stignore_manager::{AppState, Context, TeraEngine, agent_client, humansize_filter};
 
 pub fn create_test_config() -> ManagerData {
     ManagerData {
@@ -57,14 +56,15 @@ api_key = "test-key-2"
 }
 
 pub fn create_test_app_state(config: ManagerData) -> AppState {
-    let mut tera = Tera::new("html/**/*.html").unwrap();
+    let mut tera = Tera::default();
     tera.register_filter("humansize", humansize_filter);
+    tera.load_from_glob("html/**/*.html").unwrap();
     let mut context = Context::new();
     context.insert("title", "stignore-manager-test");
     context.insert("copyright", "© 2024 Test");
 
     AppState {
-        engine: Engine::from(tera),
+        engine: TeraEngine(tera),
         context,
         config: config.clone(),
         agent_client: agent_client::AgentClient::with_timeout(config.manager.agent_timeout_seconds),

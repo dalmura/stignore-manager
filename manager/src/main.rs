@@ -1,7 +1,6 @@
-use stignore_manager::{AppState, agent_client, config, create_app, humansize_filter};
+use stignore_manager::{AppState, Context, TeraEngine, agent_client, config, create_app, humansize_filter};
 
-use axum_template::engine::Engine;
-use tera::{Context, Tera};
+use tera::Tera;
 use tracing_subscriber::fmt;
 
 use std::env;
@@ -20,14 +19,15 @@ async fn main() {
     let data = config::load_config(config_filename);
 
     /* setup templates and context */
-    let mut tera = Tera::new("html/**/*.html").unwrap();
+    let mut tera = Tera::default();
     tera.register_filter("humansize", humansize_filter);
+    tera.load_from_glob("html/**/*.html").unwrap();
     let mut context = Context::new();
     context.insert("title", "stignore-manager");
     context.insert("copyright", "© 2024 Dalmura");
 
     let app_state = AppState {
-        engine: Engine::from(tera),
+        engine: TeraEngine(tera),
         context,
         config: data.clone(),
         agent_client: agent_client::AgentClient::with_timeout(data.manager.agent_timeout_seconds),

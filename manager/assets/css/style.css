@@ -491,19 +491,22 @@ p {
   border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
 }
 
-/* Remove focus indicators on list items */
-.list-group-item:focus {
-  outline: none !important;
-  box-shadow: none !important;
-  border-top: none !important;
-  border-bottom: 1px solid #e5e7eb !important;
+/* Focus indicators for keyboard navigation */
+.list-group-item:focus-visible,
+.list-group-item.key-selected {
+  outline: 2px solid var(--primary-color) !important;
+  outline-offset: -2px !important;
+  background-color: #f0f6ff !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2) !important;
+  z-index: 2;
 }
 
-.list-group-item.active:focus {
-  outline: none !important;
-  box-shadow: none !important;
-  border-top: none !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+.list-group-item.active:focus-visible,
+.list-group-item.active.key-selected {
+  outline: 2px solid white !important;
+  outline-offset: -2px !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.4) !important;
+  z-index: 2;
 }
 
 /* Focus improvements for accessibility (excluding list items) */

@@ -9,11 +9,9 @@ tokio = { version = "1.53.1", features = ["full"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tracing = "0.1.44"
 toml = "1.1"
-axum-template = { version = "3.0.0", features = ["tera"] }
-tera = "1.20.1"
+axum-template = "3.0.0"
+tera = { version = "2.1.0", features = ["glob_fs"] }
 tower-http = { version = "0.7.0", features = ["fs", "compression-full"] }
 reqwest = { version = "0.13.4", features = ["json"] }
 base64 = "0.22"
 serde_json = "1.0"
-
-

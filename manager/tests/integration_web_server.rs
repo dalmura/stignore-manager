@@ -108,22 +108,20 @@ async fn test_app_state_creation() {
 
 #[tokio::test]
 async fn test_humansize_filter_integration() {
-    use std::collections::HashMap;
-    use tera::Value;
-
     // Test the humansize filter function directly
     let test_cases = vec![
-        (500.0, "512.0 KB"),   // 500 KB input
-        (1024.0, "1.0 MB"),    // 1024 KB = 1 MB
-        (1048576.0, "1.0 GB"), // 1024*1024 KB = 1 GB
+        500.0,    // 500 KB input
+        1024.0,   // 1024 KB = 1 MB
+        1048576.0, // 1024*1024 KB = 1 GB
     ];
 
-    for (input_kb, _expected) in test_cases {
-        let value = Value::Number(serde_json::Number::from_f64(input_kb).unwrap());
-        let args = HashMap::new();
+    let kwargs = tera::Kwargs::default();
+    let context = tera::Context::default();
+    let state = tera::State::new(&context);
 
-        let result = stignore_manager::humansize_filter(&value, &args).unwrap();
-        if let Value::String(formatted) = result {
+    for input_kb in test_cases {
+        let result = stignore_manager::humansize_filter(input_kb, kwargs.clone(), &state).unwrap();
+        if let Some(formatted) = result.as_str() {
             // Just check that we got some formatted string with units
             assert!(
                 formatted.contains("KB")
