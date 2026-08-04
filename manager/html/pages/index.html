@@ -4,17 +4,105 @@
     <body>
         {% include "components/navbar.html" %}
         <div class="container-fluid" hx-get="/components/itemlist.html" hx-trigger="load">
-            <!-- Loading message displayed until itemlist loads -->
-            <div class="text-center py-5">
-                <div class="mb-4">
-                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-                        <span class="visually-hidden">Loading...</span>
+            <!-- Skeleton screen placeholder displayed while itemlist loads -->
+            <div class="skeleton-browser-placeholder fade-in py-2">
+                <div class="row align-items-center mb-3">
+                    <div class="col-md-6 d-flex align-items-center gap-3">
+                        <span class="skeleton-box skeleton-text-lg" style="width: 160px;"></span>
+                        <div class="d-flex gap-2">
+                            <span class="skeleton-box skeleton-pill" style="width: 70px;"></span>
+                            <span class="skeleton-box skeleton-pill" style="width: 130px;"></span>
+                            <span class="skeleton-box skeleton-pill" style="width: 80px;"></span>
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <span class="skeleton-box skeleton-text d-inline-block" style="width: 220px;"></span>
                     </div>
                 </div>
-                <h4 class="text-muted mb-3">Loading File Browser</h4>
-                <p class="text-muted">
-                    Please wait while we load the results from the agents...
-                </p>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="skeleton-list-group">
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 60%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
+                            </div>
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 75%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
+                            </div>
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 45%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
+                            </div>
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 80%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
+                            </div>
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 50%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 d-none d-md-block">
+                        <div class="skeleton-list-group opacity-75">
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 70%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
+                            </div>
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 55%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
+                            </div>
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 65%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 d-none d-md-block">
+                        <div class="skeleton-list-group opacity-50">
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 50%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
+                            </div>
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 80%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -27,7 +115,35 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body" id="agentModalBody">
-                        <!-- Content will be loaded here -->
+                        <!-- Skeleton placeholder while modal content is fetched -->
+                        <div class="skeleton-modal-placeholder py-1">
+                            <div class="d-flex align-items-center mb-3 gap-2">
+                                <span class="skeleton-box skeleton-icon"></span>
+                                <span class="skeleton-box skeleton-text-lg" style="width: 160px;"></span>
+                            </div>
+                            <div class="mb-3 d-flex align-items-center gap-2">
+                                <span class="skeleton-box skeleton-text-sm" style="width: 90px;"></span>
+                                <span class="skeleton-box skeleton-badge"></span>
+                            </div>
+                            <div class="mb-3 d-flex align-items-center gap-2">
+                                <span class="skeleton-box skeleton-text-sm" style="width: 60px;"></span>
+                                <span class="skeleton-box skeleton-badge" style="width: 70px;"></span>
+                            </div>
+                            <div class="skeleton-list-group mt-3">
+                                <div class="skeleton-item">
+                                    <span class="skeleton-box skeleton-text" style="width: 55%;"></span>
+                                    <span class="skeleton-box skeleton-pill"></span>
+                                </div>
+                                <div class="skeleton-item">
+                                    <span class="skeleton-box skeleton-text" style="width: 70%;"></span>
+                                    <span class="skeleton-box skeleton-pill"></span>
+                                </div>
+                                <div class="skeleton-item">
+                                    <span class="skeleton-box skeleton-text" style="width: 40%;"></span>
+                                    <span class="skeleton-box skeleton-pill"></span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

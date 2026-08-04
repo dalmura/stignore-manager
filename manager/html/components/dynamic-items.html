@@ -84,11 +84,28 @@ document.addEventListener('click', function(event) {
                          hx-get="/components/dynamic-items.html?parent_id=${target.dataset.categoryId}-${tabPaneId.replace('list-sub2-', '')}&parent_path=${target.dataset.safeId}&level=3"
                          hx-trigger="revealed"
                          hx-swap="innerHTML">
-                        <div class="text-center py-3">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
+                        <div class="skeleton-list-container py-1">
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 60%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
                             </div>
-                            <div class="text-muted small mt-2">Loading items...</div>
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 80%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
+                            </div>
+                            <div class="skeleton-item">
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <span class="skeleton-box skeleton-icon"></span>
+                                    <span class="skeleton-box skeleton-text" style="width: 50%;"></span>
+                                </div>
+                                <span class="skeleton-box skeleton-pill"></span>
+                            </div>
                         </div>
                     </div>
                 `;
