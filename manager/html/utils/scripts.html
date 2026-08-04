@@ -484,29 +484,165 @@ function applySearchAndFilter() {
     }
 }
 
-// Global Event Listeners for Search & Keyboard Shortcuts
+// Keyboard Navigation Helper Functions
+function getVisibleListItems(containerSelector) {
+    const container = document.querySelector(containerSelector);
+    if (!container) return [];
+    return Array.from(container.querySelectorAll('a:not(.d-none)'));
+}
+
+function getCurrentColumnInfo() {
+    const activeEl = document.activeElement;
+    if (!activeEl) return { col: 1, items: getVisibleListItems('#parentList'), currentIdx: -1 };
+
+    if (activeEl.closest('#parentList')) {
+        const items = getVisibleListItems('#parentList');
+        return { col: 1, items, currentIdx: items.indexOf(activeEl) };
+    }
+    if (activeEl.closest('#sub1List')) {
+        const activePane = document.querySelector('#sub1List div.tab-pane.active');
+        const items = activePane ? Array.from(activePane.querySelectorAll('a:not(.d-none)')) : [];
+        return { col: 2, items, currentIdx: items.indexOf(activeEl) };
+    }
+    if (activeEl.closest('#sub2List')) {
+        const activePane = document.querySelector('#sub2List div.tab-pane.active');
+        const items = activePane ? Array.from(activePane.querySelectorAll('a:not(.d-none)')) : [];
+        return { col: 3, items, currentIdx: items.indexOf(activeEl) };
+    }
+
+    const parentItems = getVisibleListItems('#parentList');
+    return { col: 1, items: parentItems, currentIdx: -1 };
+}
+
+function focusAndSelectListItem(itemEl) {
+    if (!itemEl) return;
+    document.querySelectorAll('.key-selected').forEach(el => el.classList.remove('key-selected'));
+    itemEl.classList.add('key-selected');
+    itemEl.focus();
+    itemEl.click();
+    if (typeof itemEl.scrollIntoView === 'function') {
+        itemEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+}
+
+// Global Event Listeners for Search & Keyboard Navigation Shortcuts
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('globalSearchInput');
     if (searchInput) {
         searchInput.addEventListener('input', applySearchAndFilter);
     }
 
-    // Keyboard Shortcuts (/ to focus search, Esc to clear)
+    // Hotkey & Arrow Key Navigation
     document.addEventListener('keydown', function(event) {
+        const searchInputEl = document.getElementById('globalSearchInput');
         const activeElement = document.activeElement;
-        const isInput = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable);
+        const isSearchFocused = activeElement === searchInputEl;
+        const isInputFocused = activeElement && (
+            activeElement.tagName === 'INPUT' ||
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.isContentEditable
+        );
 
-        if (event.key === '/' && !isInput) {
+        // Hotkey: '/' to focus global search
+        if (event.key === '/' && !isInputFocused) {
             event.preventDefault();
-            if (searchInput) {
-                searchInput.focus();
-                searchInput.select();
+            if (searchInputEl) {
+                searchInputEl.focus();
+                searchInputEl.select();
             }
-        } else if (event.key === 'Escape') {
-            if (searchInput && (document.activeElement === searchInput || searchInput.value !== '' || activeFacetFilter !== 'all')) {
-                searchInput.value = '';
+            return;
+        }
+
+        // Hotkey: 'Escape' to dismiss open modals, clear search, or deselect
+        if (event.key === 'Escape') {
+            const openModalEl = document.querySelector('.modal.show');
+            if (openModalEl && typeof bootstrap !== 'undefined') {
+                const bsModal = bootstrap.Modal.getInstance(openModalEl);
+                if (bsModal) {
+                    bsModal.hide();
+                    return;
+                }
+            }
+
+            if (searchInputEl && (isSearchFocused || searchInputEl.value !== '' || activeFacetFilter !== 'all')) {
+                searchInputEl.value = '';
                 setFacetFilter('all');
-                searchInput.blur();
+                searchInputEl.blur();
+                return;
+            }
+
+            document.querySelectorAll('.key-selected').forEach(el => el.classList.remove('key-selected'));
+            if (activeElement && typeof activeElement.blur === 'function') {
+                activeElement.blur();
+            }
+            return;
+        }
+
+        // Search Bar navigation -> Enter or ArrowDown jumps to list items
+        if (isSearchFocused && (event.key === 'Enter' || event.key === 'ArrowDown')) {
+            event.preventDefault();
+            const parentItems = getVisibleListItems('#parentList');
+            if (parentItems.length > 0) {
+                focusAndSelectListItem(parentItems[0]);
+            }
+            return;
+        }
+
+        // Ignore hotkeys if user is typing in another text input
+        if (isInputFocused) return;
+
+        // Arrow Key & Vim Hotkey Navigation for File Tree Columns
+        const key = event.key;
+        if (['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'j', 'k', 'l', 'h', 'Enter'].includes(key)) {
+            const { col, items, currentIdx } = getCurrentColumnInfo();
+
+            if (key === 'ArrowDown' || key === 'j') {
+                event.preventDefault();
+                if (items.length > 0) {
+                    const nextIdx = currentIdx < 0 ? 0 : Math.min(currentIdx + 1, items.length - 1);
+                    focusAndSelectListItem(items[nextIdx]);
+                }
+            } else if (key === 'ArrowUp' || key === 'k') {
+                event.preventDefault();
+                if (items.length > 0) {
+                    const prevIdx = currentIdx <= 0 ? 0 : currentIdx - 1;
+                    focusAndSelectListItem(items[prevIdx]);
+                }
+            } else if (key === 'ArrowRight' || key === 'l' || key === 'Enter') {
+                event.preventDefault();
+                if (col === 1) {
+                    const sub1Pane = document.querySelector('#sub1List div.tab-pane.active');
+                    const sub1Items = sub1Pane ? Array.from(sub1Pane.querySelectorAll('a:not(.d-none)')) : [];
+                    if (sub1Items.length > 0) {
+                        focusAndSelectListItem(sub1Items[0]);
+                    }
+                } else if (col === 2) {
+                    const sub2Pane = document.querySelector('#sub2List div.tab-pane.active');
+                    const sub2Items = sub2Pane ? Array.from(sub2Pane.querySelectorAll('a:not(.d-none)')) : [];
+                    if (sub2Items.length > 0) {
+                        focusAndSelectListItem(sub2Items[0]);
+                    }
+                }
+            } else if (key === 'ArrowLeft' || key === 'h') {
+                event.preventDefault();
+                if (col === 3) {
+                    const activeSub1 = document.querySelector('#sub1List div.tab-pane.active a.active') ||
+                                       document.querySelector('#sub1List div.tab-pane.active a:not(.d-none)');
+                    if (activeSub1) {
+                        focusAndSelectListItem(activeSub1);
+                    }
+                } else if (col === 2) {
+                    const activeParent = document.querySelector('#parentList a.active') ||
+                                         document.querySelector('#parentList a:not(.d-none)');
+                    if (activeParent) {
+                        focusAndSelectListItem(activeParent);
+                    }
+                } else if (col === 1) {
+                    if (searchInputEl) {
+                        searchInputEl.focus();
+                        searchInputEl.select();
+                    }
+                }
             }
         }
     });
