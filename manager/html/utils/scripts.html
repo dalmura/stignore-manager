@@ -680,4 +680,29 @@ function toggleAgent(agentName, enabled) {
         console.error('Toggle agent request failed:', error);
     });
 }
+function updateThemeIcons(theme) {
+    const sunIcon = document.getElementById('themeIconSun');
+    const moonIcon = document.getElementById('themeIconMoon');
+    if (theme === 'dark') {
+        if (sunIcon) sunIcon.classList.remove('d-none');
+        if (moonIcon) moonIcon.classList.add('d-none');
+    } else {
+        if (sunIcon) sunIcon.classList.add('d-none');
+        if (moonIcon) moonIcon.classList.remove('d-none');
+    }
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-bs-theme') || 'light';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-bs-theme', newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcons(newTheme);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const currentTheme = document.documentElement.getAttribute('data-bs-theme') || 'light';
+    updateThemeIcons(currentTheme);
+});
 </script>
