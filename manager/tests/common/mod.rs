@@ -68,6 +68,7 @@ pub fn create_test_app_state(config: ManagerData) -> AppState {
         context,
         config: config.clone(),
         agent_client: agent_client::AgentClient::with_timeout(config.manager.agent_timeout_seconds),
+        disabled_agents: std::sync::Arc::new(std::sync::RwLock::new(std::collections::HashSet::new())),
     }
 }
 

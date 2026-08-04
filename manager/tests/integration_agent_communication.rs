@@ -177,7 +177,8 @@ async fn test_multi_agent_aggregation_success() {
     };
 
     let client = stignore_manager::agent_client::AgentClient::with_timeout(5);
-    let result = stignore_manager::agents::list_categories(&client, config.agents).await;
+    let disabled = std::collections::HashSet::new();
+    let result = stignore_manager::agents::list_categories(&client, config.agents, &disabled).await;
 
     // Should aggregate data from both agents
     assert!(!result.items.is_empty());
@@ -217,7 +218,8 @@ async fn test_agent_partial_failure_handling() {
     };
 
     let client = stignore_manager::agent_client::AgentClient::with_timeout(5);
-    let result = stignore_manager::agents::list_categories(&client, config.agents).await;
+    let disabled = std::collections::HashSet::new();
+    let result = stignore_manager::agents::list_categories(&client, config.agents, &disabled).await;
 
     // Should still return data from the good agent
     assert!(!result.items.is_empty());

@@ -20,6 +20,7 @@ pub struct AppState {
     pub context: Context,
     pub config: stignore_lib::ManagerData,
     pub agent_client: agent_client::AgentClient,
+    pub disabled_agents: std::sync::Arc<std::sync::RwLock<std::collections::HashSet<String>>>,
 }
 
 pub fn humansize_filter(

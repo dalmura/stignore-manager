@@ -283,3 +283,48 @@ async fn test_full_user_workflow_integration() {
     let body: serde_json::Value = response.json();
     assert_eq!(body["success"], true);
 }
+
+#[tokio::test]
+async fn test_toggle_agent_endpoint() {
+    let mock_server = setup_mock_agent_server().await;
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    // Toggle test-agent-1 off (disabled)
+    let toggle_request = json!({
+        "agent_name": "test-agent-1",
+        "enabled": false
+    });
+
+    let response = server
+        .post("/components/agents/toggle")
+        .json(&toggle_request)
+        .await;
+
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["success"], true);
+    assert_eq!(body["enabled"], false);
+
+    // Verify agents overview shows disabled status
+    let overview_resp = server.get("/agents").await;
+    overview_resp.assert_status_ok();
+    overview_resp.assert_text_contains("Disabled");
+
+    // Toggle test-agent-1 back on (enabled)
+    let toggle_on_request = json!({
+        "agent_name": "test-agent-1",
+        "enabled": true
+    });
+
+    let response = server
+        .post("/components/agents/toggle")
+        .json(&toggle_on_request)
+        .await;
+
+    response.assert_status_ok();
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["success"], true);
+    assert_eq!(body["enabled"], true);
+}

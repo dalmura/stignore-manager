@@ -516,4 +516,32 @@ document.addEventListener('DOMContentLoaded', function() {
         applySearchAndFilter();
     });
 });
+
+function toggleAgent(agentName, enabled) {
+    fetch('/components/agents/toggle', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            agent_name: agentName,
+            enabled: enabled
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message, 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 600);
+        } else {
+            showToast(data.message || 'Failed to toggle agent state', 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Failed to toggle agent. Connection error.', 'error');
+        console.error('Toggle agent request failed:', error);
+    });
+}
 </script>

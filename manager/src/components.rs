@@ -32,6 +32,7 @@ pub fn router() -> Router<AppState> {
         .route("/dynamic-items.html", get(dynamic_items))
         .route("/infopanel.html", post(infopanel))
         .route("/agent-modal.html", post(agent_modal))
+        .route("/agents/toggle", post(toggle_agent))
         .route("/ignore", post(ignore_item))
         .route("/delete", post(delete_item))
 }
@@ -77,7 +78,8 @@ fn convert_item_with_flags(item: &ItemGroup, minimum_copies: u8) -> ItemGroupWit
 async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
     let mut context = state.context.clone();
 
-    let response = agents::list_categories(&state.agent_client, state.config.agents).await;
+    let disabled_agents = state.disabled_agents.read().unwrap().clone();
+    let response = agents::list_categories(&state.agent_client, state.config.agents, &disabled_agents).await;
     // Items are already sorted by agents::list_categories
 
     // Convert to ItemGroupWithFlags with has_insufficient_copies field
@@ -138,6 +140,20 @@ struct IgnoreItemResponse {
 struct DeleteItemResponse {
     success: bool,
     message: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct ToggleAgentRequest {
+    agent_name: String,
+    enabled: bool,
+}
+
+#[derive(Serialize, Debug)]
+struct ToggleAgentResponse {
+    success: bool,
+    message: String,
+    agent_name: String,
+    enabled: bool,
 }
 
 #[derive(Serialize, Debug)]
@@ -292,7 +308,9 @@ async fn infopanel(
         .map(AsRef::as_ref)
         .collect();
 
-    match agents::item_info(&state.agent_client, state.config.agents, item_path).await {
+    let disabled_agents = state.disabled_agents.read().unwrap().clone();
+
+    match agents::item_info(&state.agent_client, state.config.agents, item_path, &disabled_agents).await {
         Ok(response) => {
             let agent_items_with_status = calculate_sync_status(
                 &state.agent_client,
@@ -343,10 +361,13 @@ async fn agent_modal(
         .map(AsRef::as_ref)
         .collect();
 
+    let disabled_agents = state.disabled_agents.read().unwrap().clone();
+
     match agents::item_info(
         &state.agent_client,
         state.config.agents,
         item_path_parts.clone(),
+        &disabled_agents,
     )
     .await
     {
@@ -558,6 +579,26 @@ async fn delete_item(
     }
 }
 
+async fn toggle_agent(
+    State(state): State<AppState>,
+    Json(payload): Json<ToggleAgentRequest>,
+) -> impl IntoResponse {
+    let mut disabled = state.disabled_agents.write().unwrap();
+    if payload.enabled {
+        disabled.remove(&payload.agent_name);
+    } else {
+        disabled.insert(payload.agent_name.clone());
+    }
+
+    let status_str = if payload.enabled { "enabled" } else { "disabled" };
+    Json(ToggleAgentResponse {
+        success: true,
+        message: format!("Agent '{}' is now {}", payload.agent_name, status_str),
+        agent_name: payload.agent_name,
+        enabled: payload.enabled,
+    })
+}
+
 async fn dynamic_items(
     State(state): State<AppState>,
     Query(query): Query<DynamicItemsQuery>,
@@ -582,7 +623,8 @@ async fn dynamic_items(
         }
     };
 
-    let response = agents::list_categories(&state.agent_client, state.config.agents).await;
+    let disabled_agents = state.disabled_agents.read().unwrap().clone();
+    let response = agents::list_categories(&state.agent_client, state.config.agents, &disabled_agents).await;
 
     let found_items = if query.level == 2 {
         // Level 2: Find direct children of top-level category

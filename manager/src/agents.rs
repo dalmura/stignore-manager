@@ -28,11 +28,18 @@ pub struct CategoryListingResponse {
 pub async fn list_categories(
     agent_client: &crate::agent_client::AgentClient,
     agents: Vec<Agent>,
+    disabled_agents: &std::collections::HashSet<String>,
 ) -> CategoryListingResponse {
     let mut agent_responses: Vec<AgentCategoryListingResponse> = vec![];
     let mut consolidated: HashMap<String, ItemGroup> = HashMap::new();
 
     for agent in agents {
+        if disabled_agents.contains(&agent.name) {
+            let empty_response = AgentCategoryListingResponse { items: vec![] };
+            agent_responses.push(empty_response);
+            continue;
+        }
+
         match agent_client.get_categories(&agent).await {
             Ok(resp) => {
                 agent_responses.push(resp.clone());
@@ -85,6 +92,7 @@ pub async fn item_info(
     agent_client: &crate::agent_client::AgentClient,
     agents: Vec<Agent>,
     item_path: Vec<&str>,
+    disabled_agents: &std::collections::HashSet<String>,
 ) -> Result<ItemInfoResponse, crate::agent_client::AgentError> {
     let mut agent_responses: Vec<(Agent, ItemGroup)> = vec![];
     let mut consolidated: ItemGroup = ItemGroup {
@@ -99,6 +107,20 @@ pub async fn item_info(
     let owned_path: Vec<String> = item_path.iter().map(|v| v.to_string()).collect();
 
     for agent in agents {
+        if disabled_agents.contains(&agent.name) {
+            let empty_item = ItemGroup {
+                id: "".to_string(),
+                name: "".to_string(),
+                size_kb: 0,
+                items: vec![],
+                leaf: false,
+                copy_count: 0,
+            };
+            agent_responses.push((agent, empty_item.clone()));
+            consolidated = empty_item + consolidated;
+            continue;
+        }
+
         let body = AgentItemInfoRequest {
             item_path: owned_path.clone(),
         };

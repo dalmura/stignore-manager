@@ -22,6 +22,7 @@
                         <tr>
                             <th scope="col">Agent Name</th>
                             <th scope="col">URL</th>
+                            <th scope="col" class="text-center">Enable / Disable</th>
                             <th scope="col">Status</th>
                             <th scope="col">Total Size</th>
                             <th scope="col">Categories</th>
@@ -36,18 +37,31 @@
                             <td>
                                 <code class="text-muted">{{ agent.url }}</code>
                             </td>
+                            <td class="text-center">
+                                <div class="form-check form-switch d-inline-block">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="toggle-agent-{{ loop.index }}" {% if agent.enabled %}checked{% endif %} onchange="toggleAgent('{{ agent.name }}', this.checked)">
+                                </div>
+                            </td>
                             <td>
-                                {% if agent.status == "Active" %}
-                                    <span class="badge bg-success">{{ agent.status }}</span>
-                                {% elif agent.status == "Timeout" %}
-                                    <span class="badge bg-warning text-dark" title="{{ agent.status_message }}">{{ agent.status }}</span>
-                                {% elif agent.status == "Unreachable" %}
-                                    <span class="badge bg-danger" title="{{ agent.status_message }}">{{ agent.status }}</span>
-                                {% elif agent.status == "Error" %}
-                                    <span class="badge bg-danger" title="{{ agent.status_message }}">{{ agent.status }}</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{{ agent.status }}</span>
-                                {% endif %}
+                                <div class="d-flex align-items-center gap-2">
+                                    {% if agent.status == "Active" %}
+                                        <span class="badge bg-success">{{ agent.status }}</span>
+                                    {% elif agent.status == "Disabled" %}
+                                        <span class="badge bg-secondary" title="{{ agent.status_message }}">{{ agent.status }}</span>
+                                    {% elif agent.status == "Timeout" %}
+                                        <span class="badge bg-warning text-dark" title="{{ agent.status_message }}">{{ agent.status }}</span>
+                                    {% elif agent.status == "Unreachable" %}
+                                        <span class="badge bg-danger" title="{{ agent.status_message }}">{{ agent.status }}</span>
+                                    {% elif agent.status == "Error" %}
+                                        <span class="badge bg-danger" title="{{ agent.status_message }}">{{ agent.status }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ agent.status }}</span>
+                                    {% endif %}
+
+                                    {% if agent.latency_ms %}
+                                        <span class="badge text-bg-light border text-muted small" title="Roundtrip latency">⚡ {{ agent.latency_ms }} ms</span>
+                                    {% endif %}
+                                </div>
                             </td>
                             <td>
                                 {% if agent.total_size_kb > 0 %}
