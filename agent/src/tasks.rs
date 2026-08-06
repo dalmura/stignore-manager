@@ -220,6 +220,86 @@ pub async fn post_ignore(
     }
 }
 
+// POST unignore
+// Removes an item from .stignore file
+pub async fn post_unignore(
+    State(data): State<AgentData>,
+    Json(payload): Json<IgnoreRequest>,
+) -> Response {
+    tracing::info!(
+        "Processing unignore request for category: '{}', folder_path: {:?}",
+        payload.category_id,
+        payload.folder_path
+    );
+
+    if payload.folder_path.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(IgnoreResponse {
+                success: false,
+                message: "Folder path cannot be empty".to_string(),
+                ignored_path: None,
+            }),
+        )
+            .into_response();
+    }
+
+    let category = match data.categories.iter().find(|c| c.id == payload.category_id) {
+        Some(cat) => cat,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(IgnoreResponse {
+                    success: false,
+                    message: format!("Category ID '{}' not found", payload.category_id),
+                    ignored_path: None,
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let category_base_path = build_category_base_path(&data.agent, category);
+    let result = filesystem::remove_from_stignore(
+        &category_base_path,
+        &payload.folder_path,
+        &category.name,
+    );
+
+    match result {
+        filesystem::StignoreResult::Success {
+            ignored_path,
+            message,
+        } => (
+            StatusCode::OK,
+            Json(IgnoreResponse {
+                success: true,
+                message,
+                ignored_path: Some(ignored_path),
+            }),
+        )
+            .into_response(),
+        filesystem::StignoreResult::AlreadyIgnored { ignored_path } => (
+            StatusCode::OK,
+            Json(IgnoreResponse {
+                success: true,
+                message: "Path is not ignored".to_string(),
+                ignored_path: Some(ignored_path),
+            }),
+        )
+            .into_response(),
+        filesystem::StignoreResult::Error { message } => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(IgnoreResponse {
+                success: false,
+                message,
+                ignored_path: None,
+            }),
+        )
+            .into_response(),
+    }
+}
+
 // POST ignore status
 // Checks if a folder is ignored in .stignore
 pub async fn post_ignore_status(
@@ -535,6 +615,7 @@ mod tests {
             .route("/api/v1/categories/{id}", axum::routing::get(category_info))
             .route("/api/v1/items", axum::routing::post(post_item_info))
             .route("/api/v1/ignore", axum::routing::post(post_ignore))
+            .route("/api/v1/unignore", axum::routing::post(post_unignore))
             .route(
                 "/api/v1/ignore-status",
                 axum::routing::post(post_ignore_status),

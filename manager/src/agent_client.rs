@@ -99,12 +99,21 @@ impl AgentClient {
 
         if !status.is_success() {
             let error_body = response.text().await.unwrap_or_default();
-            tracing::error!(
-                "Agent '{}' returned error status {}: {}",
-                agent.name,
-                status,
-                error_body
-            );
+            if status == reqwest::StatusCode::NOT_FOUND {
+                tracing::debug!(
+                    "Agent '{}' returned status {}: {}",
+                    agent.name,
+                    status,
+                    error_body
+                );
+            } else {
+                tracing::error!(
+                    "Agent '{}' returned error status {}: {}",
+                    agent.name,
+                    status,
+                    error_body
+                );
+            }
             return Err(AgentError::InvalidResponse(format!(
                 "HTTP {}: {}",
                 status, error_body
@@ -173,6 +182,31 @@ impl AgentClient {
                 message,
             }),
             AgentIgnoreResponse {
+                success: false,
+                message,
+            } => Err(AgentError::OperationFailed(message)),
+        }
+    }
+
+    /// Unignore an item on an agent
+    pub async fn unignore_item(
+        &self,
+        agent: &Agent,
+        request: &AgentUnignoreRequest,
+    ) -> Result<AgentUnignoreResponse, AgentError> {
+        let response = self
+            .make_request(agent, "unignore", Method::POST, Some(request))
+            .await?;
+
+        match response {
+            AgentUnignoreResponse {
+                success: true,
+                message,
+            } => Ok(AgentUnignoreResponse {
+                success: true,
+                message,
+            }),
+            AgentUnignoreResponse {
                 success: false,
                 message,
             } => Err(AgentError::OperationFailed(message)),

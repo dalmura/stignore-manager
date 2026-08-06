@@ -98,6 +98,7 @@ async fn main() {
         .route("/api/v1/categories/{id}", get(tasks::category_info))
         .route("/api/v1/items", post(tasks::post_item_info))
         .route("/api/v1/ignore", post(tasks::post_ignore))
+        .route("/api/v1/unignore", post(tasks::post_unignore))
         .route("/api/v1/ignore-status", post(tasks::post_ignore_status))
         .route(
             "/api/v1/ignore-status-bulk",

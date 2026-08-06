@@ -7,22 +7,22 @@ use super::AppState;
 use crate::agents;
 
 #[derive(Serialize)]
-struct CategoryInfo {
-    name: String,
-    size_kb: u64,
-    item_count: usize,
+pub struct CategoryInfo {
+    pub name: String,
+    pub size_kb: u64,
+    pub item_count: usize,
 }
 
 #[derive(Serialize)]
-struct AgentSummary {
-    name: String,
-    url: String,
-    total_size_kb: u64,
-    categories: Vec<CategoryInfo>,
-    status: String,
-    status_message: Option<String>,
-    enabled: bool,
-    latency_ms: Option<u128>,
+pub struct AgentSummary {
+    pub name: String,
+    pub url: String,
+    pub total_size_kb: u64,
+    pub categories: Vec<CategoryInfo>,
+    pub status: String,
+    pub status_message: Option<String>,
+    pub enabled: bool,
+    pub latency_ms: Option<u128>,
 }
 
 pub async fn root(State(state): State<AppState>) -> impl IntoResponse {
@@ -38,11 +38,7 @@ pub async fn root(State(state): State<AppState>) -> impl IntoResponse {
     )
 }
 
-pub async fn agents_overview(State(state): State<AppState>) -> impl IntoResponse {
-    let mut context = state.context.clone();
-    context.insert("page_title", "Agents Overview");
-    context.insert("current_page", "agents");
-
+pub async fn build_agent_summaries(state: &AppState) -> Vec<AgentSummary> {
     let mut agent_summaries = Vec::new();
     let disabled_agents = state.disabled_agents.read().unwrap().clone();
 
@@ -156,7 +152,15 @@ pub async fn agents_overview(State(state): State<AppState>) -> impl IntoResponse
 
     // Sort by name
     agent_summaries.sort_by(|a, b| a.name.cmp(&b.name));
+    agent_summaries
+}
 
+pub async fn agents_overview(State(state): State<AppState>) -> impl IntoResponse {
+    let mut context = state.context.clone();
+    context.insert("page_title", "Agents Overview");
+    context.insert("current_page", "agents");
+
+    let agent_summaries = build_agent_summaries(&state).await;
     context.insert("agents", &agent_summaries);
 
     RenderHtml(

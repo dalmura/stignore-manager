@@ -33,8 +33,14 @@ pub fn router() -> Router<AppState> {
         .route("/infopanel.html", post(infopanel))
         .route("/agent-modal.html", post(agent_modal))
         .route("/agents/toggle", post(toggle_agent))
+        .route("/agents-table.html", get(agents_table))
         .route("/ignore", post(ignore_item))
+        .route("/unignore", post(unignore_item))
         .route("/delete", post(delete_item))
+        .route("/delete-details", post(delete_item_details))
+        .route("/bulk-ignore", post(bulk_ignore_item))
+        .route("/bulk-unignore", post(bulk_unignore_item))
+        .route("/bulk-delete", post(bulk_delete_item))
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -514,6 +520,65 @@ async fn ignore_item(
     }
 }
 
+async fn unignore_item(
+    State(state): State<AppState>,
+    Json(payload): Json<IgnoreItemRequest>,
+) -> impl IntoResponse {
+    let agent = match state
+        .config
+        .agents
+        .iter()
+        .find(|a| a.name == payload.agent_name)
+    {
+        Some(agent) => agent,
+        None => {
+            return Json(IgnoreItemResponse {
+                success: false,
+                message: format!("Agent '{}' not found", payload.agent_name),
+            });
+        }
+    };
+
+    let filtered_item_path: Vec<String> = payload
+        .item_path
+        .iter()
+        .filter(|i| !i.is_empty())
+        .cloned()
+        .collect();
+
+    let (category_id, folder_path) = if filtered_item_path.is_empty() {
+        return Json(IgnoreItemResponse {
+            success: false,
+            message: "No valid path provided".to_string(),
+        });
+    } else {
+        let category_id = filtered_item_path[0].clone();
+        let folder_path = if filtered_item_path.len() > 1 {
+            filtered_item_path[1..].to_vec()
+        } else {
+            vec![]
+        };
+
+        (category_id, folder_path)
+    };
+
+    let unignore_request = AgentUnignoreRequest {
+        category_id,
+        folder_path,
+    };
+
+    match state.agent_client.unignore_item(agent, &unignore_request).await {
+        Ok(_) => Json(IgnoreItemResponse {
+            success: true,
+            message: format!("Successfully un-ignored item on {}", agent.name),
+        }),
+        Err(e) => Json(IgnoreItemResponse {
+            success: false,
+            message: format!("Failed to un-ignore item: {}", e),
+        }),
+    }
+}
+
 async fn delete_item(
     State(state): State<AppState>,
     Json(payload): Json<DeleteItemRequest>,
@@ -579,6 +644,344 @@ async fn delete_item(
     }
 }
 
+#[derive(Deserialize, Debug)]
+pub struct DeleteItemDetailsRequest {
+    pub agent_name: String,
+    pub item_path: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DeleteItemDetailsResponse {
+    pub success: bool,
+    pub message: Option<String>,
+    pub name: String,
+    pub is_leaf: bool,
+    pub is_dir: bool,
+    pub size_kb: u64,
+    pub item_count: usize,
+    pub agent_name: String,
+}
+
+async fn delete_item_details(
+    State(state): State<AppState>,
+    Json(payload): Json<DeleteItemDetailsRequest>,
+) -> impl IntoResponse {
+    // Find the agent by name
+    let agent = match state
+        .config
+        .agents
+        .iter()
+        .find(|a| a.name == payload.agent_name)
+    {
+        Some(agent) => agent,
+        None => {
+            return Json(DeleteItemDetailsResponse {
+                success: false,
+                message: Some(format!("Agent '{}' not found", payload.agent_name)),
+                name: String::new(),
+                is_leaf: false,
+                is_dir: false,
+                size_kb: 0,
+                item_count: 0,
+                agent_name: payload.agent_name,
+            });
+        }
+    };
+
+    // Filter out empty strings from item_path
+    let filtered_item_path: Vec<String> = payload
+        .item_path
+        .iter()
+        .filter(|i| !i.is_empty())
+        .cloned()
+        .collect();
+
+    if filtered_item_path.is_empty() {
+        return Json(DeleteItemDetailsResponse {
+            success: false,
+            message: Some("No valid path provided".to_string()),
+            name: String::new(),
+            is_leaf: false,
+            is_dir: false,
+            size_kb: 0,
+            item_count: 0,
+            agent_name: payload.agent_name,
+        });
+    }
+
+    let request = AgentItemInfoRequest {
+        item_path: filtered_item_path,
+    };
+
+    match state.agent_client.get_item_info(agent, &request).await {
+        Ok(resp) => {
+            let is_dir = !resp.item.items.is_empty() || request.item_path.len() <= 2;
+            Json(DeleteItemDetailsResponse {
+                success: true,
+                message: None,
+                name: resp.item.name,
+                is_leaf: resp.item.leaf,
+                is_dir,
+                size_kb: resp.item.size_kb,
+                item_count: resp.item.items.len(),
+                agent_name: agent.name.clone(),
+            })
+        }
+        Err(e) => Json(DeleteItemDetailsResponse {
+            success: false,
+            message: Some(format!("Failed to retrieve item details: {}", e)),
+            name: String::new(),
+            is_leaf: false,
+            is_dir: false,
+            size_kb: 0,
+            item_count: 0,
+            agent_name: payload.agent_name,
+        }),
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct BulkIgnoreRequest {
+    pub agent_names: Vec<String>,
+    pub item_path: Vec<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct BulkDeleteRequest {
+    pub agent_names: Vec<String>,
+    pub item_path: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BulkActionResult {
+    pub agent_name: String,
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BulkActionResponse {
+    pub success: bool,
+    pub message: String,
+    pub results: Vec<BulkActionResult>,
+}
+
+async fn bulk_ignore_item(
+    State(state): State<AppState>,
+    Json(payload): Json<BulkIgnoreRequest>,
+) -> impl IntoResponse {
+    let filtered_item_path: Vec<String> = payload
+        .item_path
+        .iter()
+        .filter(|i| !i.is_empty())
+        .cloned()
+        .collect();
+
+    if filtered_item_path.is_empty() {
+        return Json(BulkActionResponse {
+            success: false,
+            message: "No valid path provided".to_string(),
+            results: vec![],
+        });
+    }
+
+    let category_id = filtered_item_path[0].clone();
+    let folder_path = if filtered_item_path.len() > 1 {
+        filtered_item_path[1..].to_vec()
+    } else {
+        vec![]
+    };
+
+    let ignore_request = AgentIgnoreRequest {
+        category_id,
+        folder_path,
+    };
+
+    let mut results = Vec::new();
+    let mut overall_success = true;
+
+    for agent_name in &payload.agent_names {
+        if let Some(agent) = state.config.agents.iter().find(|a| &a.name == agent_name) {
+            match state.agent_client.ignore_item(agent, &ignore_request).await {
+                Ok(_) => results.push(BulkActionResult {
+                    agent_name: agent_name.clone(),
+                    success: true,
+                    message: format!("Ignored item on {}", agent_name),
+                }),
+                Err(e) => {
+                    overall_success = false;
+                    results.push(BulkActionResult {
+                        agent_name: agent_name.clone(),
+                        success: false,
+                        message: format!("Failed on {}: {}", agent_name, e),
+                    });
+                }
+            }
+        } else {
+            overall_success = false;
+            results.push(BulkActionResult {
+                agent_name: agent_name.clone(),
+                success: false,
+                message: format!("Agent '{}' not found", agent_name),
+            });
+        }
+    }
+
+    Json(BulkActionResponse {
+        success: overall_success,
+        message: if overall_success {
+            format!("Successfully ignored item across {} agents", results.len())
+        } else {
+            "Bulk ignore completed with errors".to_string()
+        },
+        results,
+    })
+}
+
+async fn bulk_unignore_item(
+    State(state): State<AppState>,
+    Json(payload): Json<BulkIgnoreRequest>,
+) -> impl IntoResponse {
+    let filtered_item_path: Vec<String> = payload
+        .item_path
+        .iter()
+        .filter(|i| !i.is_empty())
+        .cloned()
+        .collect();
+
+    if filtered_item_path.is_empty() {
+        return Json(BulkActionResponse {
+            success: false,
+            message: "No valid path provided".to_string(),
+            results: vec![],
+        });
+    }
+
+    let category_id = filtered_item_path[0].clone();
+    let folder_path = if filtered_item_path.len() > 1 {
+        filtered_item_path[1..].to_vec()
+    } else {
+        vec![]
+    };
+
+    let unignore_request = AgentUnignoreRequest {
+        category_id,
+        folder_path,
+    };
+
+    let mut results = Vec::new();
+    let mut overall_success = true;
+
+    for agent_name in &payload.agent_names {
+        if let Some(agent) = state.config.agents.iter().find(|a| &a.name == agent_name) {
+            match state.agent_client.unignore_item(agent, &unignore_request).await {
+                Ok(_) => results.push(BulkActionResult {
+                    agent_name: agent_name.clone(),
+                    success: true,
+                    message: format!("Un-ignored item on {}", agent_name),
+                }),
+                Err(e) => {
+                    overall_success = false;
+                    results.push(BulkActionResult {
+                        agent_name: agent_name.clone(),
+                        success: false,
+                        message: format!("Failed on {}: {}", agent_name, e),
+                    });
+                }
+            }
+        } else {
+            overall_success = false;
+            results.push(BulkActionResult {
+                agent_name: agent_name.clone(),
+                success: false,
+                message: format!("Agent '{}' not found", agent_name),
+            });
+        }
+    }
+
+    Json(BulkActionResponse {
+        success: overall_success,
+        message: if overall_success {
+            format!("Successfully un-ignored item across {} agents", results.len())
+        } else {
+            "Bulk un-ignore completed with errors".to_string()
+        },
+        results,
+    })
+}
+
+async fn bulk_delete_item(
+    State(state): State<AppState>,
+    Json(payload): Json<BulkDeleteRequest>,
+) -> impl IntoResponse {
+    let filtered_item_path: Vec<String> = payload
+        .item_path
+        .iter()
+        .filter(|i| !i.is_empty())
+        .cloned()
+        .collect();
+
+    if filtered_item_path.is_empty() {
+        return Json(BulkActionResponse {
+            success: false,
+            message: "No valid path provided".to_string(),
+            results: vec![],
+        });
+    }
+
+    let category_id = filtered_item_path[0].clone();
+    let folder_path = if filtered_item_path.len() > 1 {
+        filtered_item_path[1..].to_vec()
+    } else {
+        vec![]
+    };
+
+    let delete_request = AgentDeleteRequest {
+        category_id,
+        folder_path,
+    };
+
+    let mut results = Vec::new();
+    let mut overall_success = true;
+
+    for agent_name in &payload.agent_names {
+        if let Some(agent) = state.config.agents.iter().find(|a| &a.name == agent_name) {
+            match state.agent_client.delete_item(agent, &delete_request).await {
+                Ok(_) => results.push(BulkActionResult {
+                    agent_name: agent_name.clone(),
+                    success: true,
+                    message: format!("Deleted item on {}", agent_name),
+                }),
+                Err(e) => {
+                    overall_success = false;
+                    results.push(BulkActionResult {
+                        agent_name: agent_name.clone(),
+                        success: false,
+                        message: format!("Failed on {}: {}", agent_name, e),
+                    });
+                }
+            }
+        } else {
+            overall_success = false;
+            results.push(BulkActionResult {
+                agent_name: agent_name.clone(),
+                success: false,
+                message: format!("Agent '{}' not found", agent_name),
+            });
+        }
+    }
+
+    Json(BulkActionResponse {
+        success: overall_success,
+        message: if overall_success {
+            format!("Successfully deleted item across {} agents", results.len())
+        } else {
+            "Bulk delete completed with errors".to_string()
+        },
+        results,
+    })
+}
+
 async fn toggle_agent(
     State(state): State<AppState>,
     Json(payload): Json<ToggleAgentRequest>,
@@ -597,6 +1000,18 @@ async fn toggle_agent(
         agent_name: payload.agent_name,
         enabled: payload.enabled,
     })
+}
+
+async fn agents_table(State(state): State<AppState>) -> impl IntoResponse {
+    let mut context = state.context.clone();
+    let agent_summaries = crate::pages::build_agent_summaries(&state).await;
+    context.insert("agents", &agent_summaries);
+
+    RenderHtml(
+        Key("components/agents-table.html".to_string()),
+        state.engine,
+        context.into_json(),
+    )
 }
 
 async fn dynamic_items(

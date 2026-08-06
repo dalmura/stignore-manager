@@ -295,10 +295,51 @@ body > .container-fluid {
   transform: scale(1.04);
 }
 
-.text-bg-primary {
-  background-color: var(--primary-color) !important;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+/* Status Badges & Soft Pills */
+.status-badge-success,
+.badge.bg-success {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: var(--success-color) !important;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-badge-warning,
+.badge.bg-warning {
+  background-color: rgba(245, 158, 11, 0.18) !important;
+  color: var(--warning-color) !important;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.status-badge-danger,
+.badge.bg-danger {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+  color: var(--danger-color) !important;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.status-badge-secondary,
+.status-badge-muted,
+.badge.bg-secondary,
+.badge.text-bg-light {
+  background-color: rgba(148, 163, 184, 0.15) !important;
+  color: var(--text-muted) !important;
+  border: 1px solid var(--border-color);
+}
+
+.status-badge-primary,
+.badge.bg-primary {
+  background-color: var(--primary-light) !important;
+  color: var(--primary-color) !important;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+}
+
+[data-bs-theme="dark"] .status-badge-primary,
+[data-theme="dark"] .status-badge-primary,
+[data-bs-theme="dark"] .badge.bg-primary,
+[data-theme="dark"] .badge.bg-primary {
+  background-color: rgba(59, 130, 246, 0.18) !important;
+  color: #60a5fa !important;
+  border: 1px solid rgba(59, 130, 246, 0.35);
 }
 
 /* Info panel styling */
@@ -316,6 +357,26 @@ body > .container-fluid {
 
 .border-primary .col:not(:last-child) {
   border-right: 1px solid var(--border-color);
+}
+
+/* Bulk actions toolbar styling */
+.bulk-actions-toolbar {
+  background-color: var(--primary-light) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  color: var(--text-main);
+  transition: all 0.2s ease-in-out;
+}
+
+[data-bs-theme="dark"] .bulk-actions-toolbar,
+[data-theme="dark"] .bulk-actions-toolbar {
+  background-color: rgba(30, 41, 59, 0.95) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: var(--text-heading);
+}
+
+.bulk-actions-label {
+  color: var(--text-heading) !important;
+  font-weight: 500;
 }
 
 /* Buttons micro-interactions */

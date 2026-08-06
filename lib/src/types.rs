@@ -223,6 +223,9 @@ pub struct AgentIgnoreResponse {
     pub message: String,
 }
 
+pub type AgentUnignoreRequest = AgentIgnoreRequest;
+pub type AgentUnignoreResponse = AgentIgnoreResponse;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AgentDeleteRequest {
     pub category_id: String,

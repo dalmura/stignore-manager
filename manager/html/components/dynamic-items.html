@@ -1,7 +1,7 @@
 {% for item in items %}
 <a
         id="item-sub{{ level - 1 }}-{{ parent_id }}-{{ item.safe_id }}"
-        class="d-flex justify-content-between align-items-center list-group-item list-group-item-action fade-in{% if level == 2 and item.has_insufficient_copies %} list-group-item-warning{% elif level == 3 and item.copy_count < minimum_copies %} list-group-item-warning{% endif %}"
+        class="d-flex justify-content-between align-items-center list-group-item list-group-item-action fade-in{% if item.has_insufficient_copies %} list-group-item-warning{% endif %}"
         data-bs-toggle="list"
         {% if level == 2 %}href="#list-sub2-{{ item.safe_id }}"{% else %}href="#"{% endif %}
         role="tab"
@@ -10,7 +10,7 @@
         hx-include="#item-sub{{ level - 1 }}-{{ parent_id }}-{{ item.safe_id }} input"
         hx-target="#info-panel"
         data-name="{{ item.name }}"
-        data-insufficient="{% if level == 2 %}{{ item.has_insufficient_copies }}{% else %}{% if item.copy_count < minimum_copies %}true{% else %}false{% endif %}{% endif %}"
+        data-insufficient="{{ item.has_insufficient_copies }}"
         {% if level == 2 %}data-safe-id="{{ item.safe_id }}" data-category-id="{{ parent_id }}"{% endif %}
 >
     <div class="d-flex align-items-center">

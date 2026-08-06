@@ -3,7 +3,7 @@
     {% include "utils/head.html" %}
     <body>
         {% include "components/navbar.html" %}
-        <div class="container-fluid" hx-get="/components/itemlist.html" hx-trigger="load">
+        <div class="container-fluid" id="file-browser-container" hx-get="/components/itemlist.html" hx-trigger="load">
             <!-- Skeleton screen placeholder displayed while itemlist loads -->
             <div class="skeleton-browser-placeholder fade-in py-2">
                 <div class="row align-items-center mb-3">
@@ -149,6 +149,32 @@
             </div>
         </div>
 
+        <!-- Ignore Confirmation Modal -->
+        <div class="modal fade" id="ignoreModal" tabindex="-1" aria-labelledby="ignoreModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-dark text-white border-warning">
+                        <h5 class="modal-title" id="ignoreModalLabel">Confirm Ignore Rule</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning py-2 mb-3 small">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                                <path d="M12 2C17.52 2 22 6.48 22 12S17.52 22 12 22 2 17.52 2 12 2M15.54 9L14.46 7.88L12 10.34L9.54 7.88L8.46 9L10.92 11.46L8.46 13.92L9.54 15.04L12 12.58L14.46 15.04L15.54 13.92L13.08 11.46L15.54 9Z"/>
+                            </svg>
+                            <strong>Notice:</strong> This item will be added to <code>.stignore</code> for Syncthing sync exclusion. You can undo this action later.
+                        </div>
+                        <p class="mb-2"><strong>Agent:</strong> <span id="ignoreAgentName"></span></p>
+                        <p class="mb-0"><strong>Item to ignore:</strong> <code id="ignoreItemName" class="text-warning"></code></p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-warning" id="confirmIgnoreBtn">Ignore Item</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Delete Confirmation Modal -->
         <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
             <div class="modal-dialog">
@@ -170,6 +196,32 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bulk Delete Confirmation Modal -->
+        <div class="modal fade" id="bulkDeleteModal" tabindex="-1" aria-labelledby="bulkDeleteModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title" id="bulkDeleteModalLabel">Confirm Bulk Delete</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-danger">
+                            <strong>Warning:</strong> This action will permanently delete the item across multiple selected agents. This cannot be undone.
+                        </div>
+                        <p><strong>Item to delete:</strong> <span id="bulkDeleteItemName"></span></p>
+                        <p><strong>Target Agents (<span id="bulkDeleteAgentCount">0</span>):</strong></p>
+                        <ul id="bulkDeleteAgentList" class="list-group mb-3">
+                            <!-- Selected agents will be listed here -->
+                        </ul>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger" id="confirmBulkDeleteBtn" onclick="performBulkDelete()">Delete Across All Selected Agents</button>
                     </div>
                 </div>
             </div>

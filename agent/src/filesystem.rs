@@ -275,6 +275,64 @@ fn add_to_stignore_str(
     }
 }
 
+/// Removes a folder path from the .stignore file in the specified category directory.
+pub fn remove_from_stignore(
+    category_base_path: &std::path::Path,
+    folder_path_components: &[String],
+    category_name: &str,
+) -> StignoreResult {
+    let folder_path_str = build_unix_path_string(folder_path_components);
+    remove_from_stignore_str(category_base_path, &folder_path_str, category_name)
+}
+
+fn remove_from_stignore_str(
+    category_base_path: &std::path::Path,
+    folder_path: &str,
+    category_name: &str,
+) -> StignoreResult {
+    let stignore_path = category_base_path.join(".stignore");
+
+    if !stignore_path.exists() {
+        return StignoreResult::Success {
+            ignored_path: folder_path.to_string(),
+            message: format!("Path '{}' was not present in .stignore", folder_path),
+        };
+    }
+
+    let ignore_content = match std::fs::read_to_string(&stignore_path) {
+        Ok(content) => content,
+        Err(err) => {
+            return StignoreResult::Error {
+                message: format!("Failed to read .stignore file: {}", err),
+            };
+        }
+    };
+
+    let remaining_lines: Vec<&str> = ignore_content
+        .lines()
+        .filter(|line| line.trim() != folder_path)
+        .collect();
+
+    let new_content = if remaining_lines.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", remaining_lines.join("\n"))
+    };
+
+    match std::fs::write(&stignore_path, &new_content) {
+        Ok(_) => StignoreResult::Success {
+            ignored_path: folder_path.to_string(),
+            message: format!(
+                "Successfully removed '{}' from .stignore in category '{}'",
+                folder_path, category_name
+            ),
+        },
+        Err(err) => StignoreResult::Error {
+            message: format!("Failed to write updated .stignore file: {}", err),
+        },
+    }
+}
+
 /// Deletes a folder path from the filesystem in the specified category directory.
 /// This function works with folder path components.
 ///

@@ -136,6 +136,219 @@ async fn test_delete_item_endpoint() {
 }
 
 #[tokio::test]
+async fn test_delete_details_endpoint_success() {
+    let mock_server = MockServer::start().await;
+
+    // Mock items endpoint
+    Mock::given(method("POST"))
+        .and(path("/api/v1/items"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "item": {
+                "id": "file.tmp",
+                "name": "file.tmp",
+                "size_kb": 1024,
+                "items": [],
+                "leaf": true,
+                "copy_count": 1
+            }
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let request_body = json!({
+        "agent_name": "test-agent-1",
+        "item_path": ["temp", "file.tmp"]
+    });
+
+    let response = server.post("/components/delete-details").json(&request_body).await;
+
+    response.assert_status_ok();
+
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["success"], true);
+    assert_eq!(body["name"], "file.tmp");
+    assert_eq!(body["is_leaf"], true);
+    assert_eq!(body["is_dir"], true);
+    assert_eq!(body["size_kb"], 1024);
+    assert_eq!(body["item_count"], 0);
+    assert_eq!(body["agent_name"], "test-agent-1");
+}
+
+#[tokio::test]
+async fn test_delete_details_endpoint_invalid_agent() {
+    let mock_server = setup_mock_agent_server().await;
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let request_body = json!({
+        "agent_name": "non-existent-agent",
+        "item_path": ["temp", "file.tmp"]
+    });
+
+    let response = server.post("/components/delete-details").json(&request_body).await;
+
+    response.assert_status_ok();
+
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["success"], false);
+    assert!(body["message"].as_str().unwrap().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_delete_details_endpoint_empty_path() {
+    let mock_server = setup_mock_agent_server().await;
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let request_body = json!({
+        "agent_name": "test-agent-1",
+        "item_path": []
+    });
+
+    let response = server.post("/components/delete-details").json(&request_body).await;
+
+    response.assert_status_ok();
+
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["success"], false);
+    assert!(body["message"].as_str().unwrap().contains("No valid path"));
+}
+
+#[tokio::test]
+async fn test_bulk_ignore_endpoint_success() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/ignore"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "message": "Item ignored successfully"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let request_body = json!({
+        "agent_names": ["test-agent-1"],
+        "item_path": ["Movies", "Action", "movie.mkv"]
+    });
+
+    let response = server.post("/components/bulk-ignore").json(&request_body).await;
+
+    response.assert_status_ok();
+
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["success"], true);
+    assert_eq!(body["results"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn test_bulk_delete_endpoint_success() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/delete"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "message": "Item deleted successfully"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let request_body = json!({
+        "agent_names": ["test-agent-1"],
+        "item_path": ["Movies", "Action", "movie.mkv"]
+    });
+
+    let response = server.post("/components/bulk-delete").json(&request_body).await;
+
+    response.assert_status_ok();
+
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["success"], true);
+    assert_eq!(body["results"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn test_unignore_item_endpoint() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/unignore"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "message": "Item unignored successfully"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let request_body = json!({
+        "agent_name": "test-agent-1",
+        "item_path": ["Movies", "Action", "movie.mkv"]
+    });
+
+    let response = server.post("/components/unignore").json(&request_body).await;
+
+    response.assert_status_ok();
+
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["success"], true);
+}
+
+#[tokio::test]
+async fn test_bulk_unignore_endpoint_success() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/unignore"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "message": "Item unignored successfully"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let request_body = json!({
+        "agent_names": ["test-agent-1"],
+        "item_path": ["Movies", "Action", "movie.mkv"]
+    });
+
+    let response = server.post("/components/bulk-unignore").json(&request_body).await;
+
+    response.assert_status_ok();
+
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["success"], true);
+    assert_eq!(body["results"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
 async fn test_ignore_item_with_invalid_agent() {
     let mock_server = setup_mock_agent_server().await;
     let config = create_test_config_with_mock_server(&mock_server.uri());

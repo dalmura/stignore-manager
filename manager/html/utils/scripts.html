@@ -4,29 +4,85 @@
 
 <script>
 function refreshItemData() {
-    // Force complete page reload to ensure fresh server-side calculation
-    setTimeout(() => {
-        // Instead of trying to refresh via HTMX, force a complete page reload
-        // This ensures the server does a complete fresh calculation
-        window.location.reload();
-    }, 1000);
+    const activeInfoPanel = document.getElementById('info-panel');
+    const activeItemPathInputs = activeInfoPanel ? activeInfoPanel.querySelectorAll('input[name="item_path"]') : [];
+    const activeItemPaths = Array.from(activeItemPathInputs).map(input => input.value).filter(val => val !== '');
+
+    fetch('/components/itemlist.html')
+        .then(response => response.text())
+        .then(html => {
+            const browserContainer = document.getElementById('file-browser-container');
+            if (browserContainer) {
+                browserContainer.innerHTML = html;
+                if (typeof htmx !== 'undefined') {
+                    htmx.process(browserContainer);
+                }
+
+                if (activeItemPaths.length > 0) {
+                    fetch('/components/infopanel.html', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            item_path: activeItemPaths
+                        })
+                    })
+                    .then(res => res.text())
+                    .then(infoHtml => {
+                        const infoPanel = document.getElementById('info-panel');
+                        if (infoPanel) {
+                            infoPanel.innerHTML = infoHtml;
+                            if (typeof htmx !== 'undefined') {
+                                htmx.process(infoPanel);
+                            }
+                        }
+                    })
+                    .catch(err => console.error('Failed to refresh info panel:', err));
+                }
+
+                if (typeof restoreSelectionFromUrl === 'function') {
+                    setTimeout(restoreSelectionFromUrl, 200);
+                }
+            } else {
+                window.location.reload();
+            }
+        })
+        .catch(err => {
+            console.error('Soft refresh failed, falling back to page reload:', err);
+            window.location.reload();
+        });
 }
 
-function showToast(message, type = 'success') {
+function showToast(message, type = 'success', options = {}) {
     const toastContainer = document.querySelector('.toast-container');
-    const toastId = 'toast-' + Date.now();
+    const toastId = 'toast-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
 
-    const bgClass = type === 'success' ? 'bg-success' : 'bg-danger';
+    const bgClass = type === 'success' ? 'bg-dark text-white border-success' : 'bg-dark text-white border-danger';
+    const headerBg = type === 'success' ? 'text-success' : 'text-danger';
     const icon = type === 'success' ? '✓' : '✕';
 
+    let actionButtonHtml = '';
+    if (options.actionText && typeof options.onAction === 'function') {
+        actionButtonHtml = `
+            <div class="mt-2 pt-2 border-top border-secondary d-flex justify-content-between align-items-center">
+                <span class="small text-muted">Undo action?</span>
+                <button type="button" class="btn btn-sm btn-outline-warning text-white fw-bold toast-action-btn">
+                    ↩ ${escapeHtml(options.actionText)}
+                </button>
+            </div>
+        `;
+    }
+
     const toastHtml = `
-        <div id="${toastId}" class="toast ${bgClass} text-white" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header ${bgClass} text-white border-0">
-                <strong class="me-auto">${icon} ${type === 'success' ? 'Success' : 'Error'}</strong>
+        <div id="${toastId}" class="toast ${bgClass} shadow-lg border" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-dark ${headerBg} border-0">
+                <strong class="me-auto">${icon} ${type === 'success' ? 'Success' : 'Notice'}</strong>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
             </div>
             <div class="toast-body">
-                ${message}
+                <div>${message}</div>
+                ${actionButtonHtml}
             </div>
         </div>
     `;
@@ -34,17 +90,74 @@ function showToast(message, type = 'success') {
     toastContainer.insertAdjacentHTML('beforeend', toastHtml);
 
     const toastElement = document.getElementById(toastId);
+
+    if (options.actionText && typeof options.onAction === 'function') {
+        const actionBtn = toastElement.querySelector('.toast-action-btn');
+        if (actionBtn) {
+            actionBtn.addEventListener('click', function() {
+                options.onAction();
+                const bsToast = bootstrap.Toast.getInstance(toastElement);
+                if (bsToast) bsToast.hide();
+            });
+        }
+    }
+
+    const delay = options.delay || (options.actionText ? 8000 : (type === 'success' ? 4000 : 6000));
+
     const toast = new bootstrap.Toast(toastElement, {
         autohide: true,
-        delay: type === 'success' ? 3000 : 5000
+        delay: delay
     });
 
     toast.show();
 
-    // Remove toast element after it's hidden
     toastElement.addEventListener('hidden.bs.toast', function() {
         toastElement.remove();
     });
+}
+
+function setupIgnoreModal(button) {
+    const agentName = button.getAttribute('data-agent-name');
+    const itemPathRaw = button.getAttribute('data-item-path');
+    const itemName = button.getAttribute('data-item-name');
+    const itemPath = itemPathRaw ? itemPathRaw.split(',') : [];
+
+    document.getElementById('ignoreAgentName').textContent = agentName;
+    document.getElementById('ignoreItemName').textContent = itemName;
+
+    const confirmBtn = document.getElementById('confirmIgnoreBtn');
+    confirmBtn.onclick = function() {
+        const modalEl = document.getElementById('ignoreModal');
+        const bsModal = bootstrap.Modal.getInstance(modalEl);
+        if (bsModal) bsModal.hide();
+
+        fetch('/components/ignore', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                agent_name: agentName,
+                item_path: itemPath
+            })
+        })
+        .then(res => res.json())
+        .then(response => {
+            if (response.success) {
+                showToast(`Item ignored on ${escapeHtml(agentName)}`, 'success', {
+                    actionText: 'Undo',
+                    onAction: () => undoIgnore(agentName, itemPath)
+                });
+                refreshItemData();
+            } else {
+                showToast(response.message || 'Failed to ignore item', 'error');
+            }
+        })
+        .catch(err => {
+            showToast('Failed to connect to server to ignore item.', 'error');
+            console.error('Ignore request failed:', err);
+        });
+    };
 }
 
 function setupDeleteModal(button) {
@@ -56,15 +169,94 @@ function setupDeleteModal(button) {
     document.getElementById('deleteAgentName').textContent = agentName;
     document.getElementById('deleteItemName').textContent = itemName;
 
-    // TODO: Load item details to show what will be deleted
-    // For now, we'll show basic info
-    document.getElementById('deleteItemDetails').innerHTML = '<p>This will permanently delete the item and all its contents from the filesystem.</p>';
+    // Show loading spinner while fetching item details
+    const detailsContainer = document.getElementById('deleteItemDetails');
+    detailsContainer.innerHTML = `
+        <div class="d-flex align-items-center py-2 text-muted">
+            <div class="spinner-border spinner-border-sm me-2" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <span>Fetching item details from agent...</span>
+        </div>
+    `;
+
+    // Fetch item details dynamically from backend
+    fetch('/components/delete-details', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            agent_name: agentName,
+            item_path: itemPath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const isDirectory = (data.is_dir !== undefined) ? data.is_dir : (data.item_count > 0);
+
+            const typeBadge = isDirectory
+                ? '<span class="badge bg-info text-dark">Directory</span>'
+                : '<span class="badge bg-secondary">File</span>';
+
+            const formattedSize = formatSizeKb(data.size_kb);
+            const contentsInfo = isDirectory
+                ? `<p class="mb-1"><strong>Direct Items:</strong> ${data.item_count} ${data.item_count === 1 ? 'item' : 'items'}</p>`
+                : '';
+            const warningText = isDirectory
+                ? `This will permanently delete the directory and all of its contents from <strong>${escapeHtml(data.agent_name)}</strong>'s filesystem.`
+                : `This will permanently delete the file from <strong>${escapeHtml(data.agent_name)}</strong>'s filesystem.`;
+
+            detailsContainer.innerHTML = `
+                <div class="card bg-body-tertiary border p-3 my-2">
+                    <p class="mb-1"><strong>Type:</strong> ${typeBadge}</p>
+                    <p class="mb-1"><strong>Size:</strong> ${formattedSize}</p>
+                    ${contentsInfo}
+                    <p class="mb-0 text-danger small mt-2">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                            <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                        </svg>
+                        ${warningText}
+                    </p>
+                </div>
+            `;
+        } else {
+            detailsContainer.innerHTML = `
+                <div class="alert alert-warning py-2 my-2 small">
+                    <strong>Note:</strong> ${escapeHtml(data.message || 'Could not fetch full details from agent.')}
+                    <br><span class="text-muted">Item will still be deleted from the filesystem if confirmed.</span>
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching delete item details:', error);
+        detailsContainer.innerHTML = `
+            <div class="alert alert-warning py-2 my-2 small">
+                <strong>Note:</strong> Could not connect to agent to fetch item metadata.
+                <br><span class="text-muted">Item will still be deleted from the filesystem if confirmed.</span>
+            </div>
+        `;
+    });
 
     // Store data for the actual delete operation
     const confirmBtn = document.getElementById('confirmDeleteBtn');
     confirmBtn.onclick = function() {
         performDelete(agentName, itemPath);
     };
+}
+
+function formatSizeKb(sizeKb) {
+    if (!sizeKb || sizeKb === 0) return '0 KB';
+    const bytes = sizeKb * 1024;
+    if (bytes < 1024) return bytes + ' B';
+    const kb = bytes / 1024;
+    if (kb < 1024) return kb.toFixed(1) + ' KB';
+    const mb = kb / 1024;
+    if (mb < 1024) return mb.toFixed(1) + ' MB';
+    const gb = mb / 1024;
+    return gb.toFixed(1) + ' GB';
 }
 
 function performDelete(agentName, itemPath) {
@@ -109,6 +301,200 @@ function performDelete(agentName, itemPath) {
         // Show network error toast
         showToast('Failed to connect to server. Please try again.', 'error');
         console.error('Delete request failed:', error);
+    });
+}
+
+function toggleSelectAllAgents(masterCheckbox) {
+    const checkboxes = document.querySelectorAll('.agent-select-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = masterCheckbox.checked;
+    });
+    updateBulkToolbarState();
+}
+
+function updateBulkToolbarState() {
+    const checkboxes = document.querySelectorAll('.agent-select-checkbox');
+    const checkedBoxes = document.querySelectorAll('.agent-select-checkbox:checked');
+    const toolbar = document.getElementById('bulkActionsToolbar');
+    const countBadge = document.getElementById('selectedAgentsCount');
+    const selectAllCheckbox = document.getElementById('selectAllAgentsCheckbox');
+
+    if (!toolbar) return;
+
+    const count = checkedBoxes.length;
+
+    if (count > 0) {
+        toolbar.classList.remove('d-none');
+        if (countBadge) {
+            countBadge.textContent = `${count} ${count === 1 ? 'agent' : 'agents'} selected`;
+        }
+    } else {
+        toolbar.classList.add('d-none');
+    }
+
+    if (selectAllCheckbox && checkboxes.length > 0) {
+        selectAllCheckbox.checked = (count === checkboxes.length);
+    }
+}
+
+function getSelectedAgentNames() {
+    const checkedBoxes = document.querySelectorAll('.agent-select-checkbox:checked');
+    return Array.from(checkedBoxes).map(cb => cb.getAttribute('data-agent-name'));
+}
+
+function undoIgnore(agentName, itemPath) {
+    fetch('/components/unignore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            agent_name: agentName,
+            item_path: itemPath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(`Un-ignored item on ${escapeHtml(agentName)}`, 'success');
+            refreshItemData();
+        } else {
+            showToast(`Undo failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Failed to connect to server to undo ignore.', 'error');
+        console.error('Undo ignore failed:', error);
+    });
+}
+
+function undoBulkIgnore(agentNames, itemPath) {
+    fetch('/components/bulk-unignore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            agent_names: agentNames,
+            item_path: itemPath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message || 'Un-ignored item across selected agents', 'success');
+            refreshItemData();
+        } else {
+            showToast(data.message || 'Undo bulk ignore failed on some agents', 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Failed to connect to server for bulk undo.', 'error');
+        console.error('Bulk undo ignore failed:', error);
+    });
+}
+
+function performBulkIgnore() {
+    const selectedAgents = getSelectedAgentNames();
+    const toolbar = document.getElementById('bulkActionsToolbar');
+    if (!toolbar || selectedAgents.length === 0) {
+        showToast('Please select at least one agent.', 'error');
+        return;
+    }
+
+    const itemPathRaw = toolbar.getAttribute('data-item-path');
+    const itemPath = itemPathRaw ? itemPathRaw.split(',') : [];
+
+    fetch('/components/bulk-ignore', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            agent_names: selectedAgents,
+            item_path: itemPath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message || 'Bulk ignore completed successfully', 'success', {
+                actionText: 'Undo',
+                onAction: () => undoBulkIgnore(selectedAgents, itemPath)
+            });
+            refreshItemData();
+        } else {
+            showToast(data.message || 'Bulk ignore failed on some agents', 'error');
+            refreshItemData();
+        }
+    })
+    .catch(error => {
+        showToast('Failed to connect to server for bulk ignore.', 'error');
+        console.error('Bulk ignore failed:', error);
+    });
+}
+
+function setupBulkDeleteModal() {
+    const selectedAgents = getSelectedAgentNames();
+    const toolbar = document.getElementById('bulkActionsToolbar');
+    if (!toolbar || selectedAgents.length === 0) {
+        showToast('Please select at least one agent.', 'error');
+        return;
+    }
+
+    const itemName = toolbar.getAttribute('data-item-name');
+    document.getElementById('bulkDeleteItemName').textContent = itemName;
+    document.getElementById('bulkDeleteAgentCount').textContent = selectedAgents.length;
+
+    const listContainer = document.getElementById('bulkDeleteAgentList');
+    listContainer.innerHTML = selectedAgents.map(name => `
+        <li class="list-group-item d-flex align-items-center">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-2 text-danger">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+            ${escapeHtml(name)}
+        </li>
+    `).join('');
+
+    const modal = new bootstrap.Modal(document.getElementById('bulkDeleteModal'));
+    modal.show();
+}
+
+function performBulkDelete() {
+    const selectedAgents = getSelectedAgentNames();
+    const toolbar = document.getElementById('bulkActionsToolbar');
+    if (!toolbar || selectedAgents.length === 0) return;
+
+    const itemPathRaw = toolbar.getAttribute('data-item-path');
+    const itemPath = itemPathRaw ? itemPathRaw.split(',') : [];
+
+    fetch('/components/bulk-delete', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            agent_names: selectedAgents,
+            item_path: itemPath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        const modalElement = document.getElementById('bulkDeleteModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) modal.hide();
+
+        if (data.success) {
+            showToast(data.message || 'Bulk delete completed successfully', 'success');
+            refreshItemData();
+        } else {
+            showToast(data.message || 'Bulk delete failed on some agents', 'error');
+            refreshItemData();
+        }
+    })
+    .catch(error => {
+        const modalElement = document.getElementById('bulkDeleteModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) modal.hide();
+
+        showToast('Failed to connect to server for bulk delete.', 'error');
+        console.error('Bulk delete failed:', error);
     });
 }
 
@@ -654,6 +1040,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function toggleAgent(agentName, enabled) {
+    const tableContainer = document.getElementById('agents-table-container');
+    if (tableContainer) {
+        tableContainer.classList.add('loading');
+    }
     fetch('/components/agents/toggle', {
         method: 'POST',
         headers: {
@@ -668,16 +1058,29 @@ function toggleAgent(agentName, enabled) {
     .then(data => {
         if (data.success) {
             showToast(data.message, 'success');
-            setTimeout(() => {
-                window.location.reload();
-            }, 600);
+            if (tableContainer) {
+                fetch('/components/agents-table.html')
+                    .then(res => res.text())
+                    .then(html => {
+                        tableContainer.innerHTML = html;
+                        tableContainer.classList.remove('loading');
+                    })
+                    .catch(err => {
+                        console.error('Failed to update agents table:', err);
+                        tableContainer.classList.remove('loading');
+                    });
+            } else {
+                refreshItemData();
+            }
         } else {
             showToast(data.message || 'Failed to toggle agent state', 'error');
+            if (tableContainer) tableContainer.classList.remove('loading');
         }
     })
     .catch(error => {
         showToast('Failed to toggle agent. Connection error.', 'error');
         console.error('Toggle agent request failed:', error);
+        if (tableContainer) tableContainer.classList.remove('loading');
     });
 }
 function updateThemeIcons(theme) {

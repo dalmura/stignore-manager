@@ -12,7 +12,7 @@
                 {% endif %}
             </div>
             <div class="d-flex align-items-center gap-2">
-                <span id="searchResultCount" class="badge text-bg-light border text-dark fw-normal d-none"></span>
+                <span id="searchResultCount" class="badge bg-secondary border fw-normal d-none"></span>
                 <div class="text-muted small">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-1">
                         <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
@@ -105,34 +105,36 @@
         {% endif %}
     </div>
     <script>
-        const triggerTabList = document.querySelectorAll('#parentList a');
-        triggerTabList.forEach(triggerEl => {
-            const tabTrigger = new bootstrap.Tab(triggerEl)
+        (function() {
+            const triggerTabList = document.querySelectorAll('#parentList a');
+            triggerTabList.forEach(triggerEl => {
+                const tabTrigger = new bootstrap.Tab(triggerEl);
 
-            triggerEl.addEventListener('click', event => {
-                event.preventDefault();
-                tabTrigger.show();
+                triggerEl.addEventListener('click', event => {
+                    event.preventDefault();
+                    tabTrigger.show();
 
-                // Update URL with selected element ID
-                updateUrlWithSelection(triggerEl.id);
+                    // Update URL with selected element ID
+                    updateUrlWithSelection(triggerEl.id);
 
-                const sub1ListRows = document.querySelectorAll("#sub1List div.tab-pane a");
-                sub1ListRows.forEach(el => {
-                    el.classList.remove("active");
-                });
+                    const sub1ListRows = document.querySelectorAll("#sub1List div.tab-pane a");
+                    sub1ListRows.forEach(el => {
+                        el.classList.remove("active");
+                    });
 
-                const sub2List = document.querySelectorAll("#sub2List div.tab-pane");
-                sub2List.forEach(el => {
-                    el.classList.remove("active");
-                    el.classList.remove("show");
-                });
+                    const sub2List = document.querySelectorAll("#sub2List div.tab-pane");
+                    sub2List.forEach(el => {
+                        el.classList.remove("active");
+                        el.classList.remove("show");
+                    });
 
-                const sub2ListRows = document.querySelectorAll("#sub2List div.tab-pane a");
-                sub2ListRows.forEach(el => {
-                    el.classList.remove("active");
+                    const sub2ListRows = document.querySelectorAll("#sub2List div.tab-pane a");
+                    sub2ListRows.forEach(el => {
+                        el.classList.remove("active");
+                    });
                 });
             });
-        })
+        })();
     </script>
     {% if items and items | length > 0 %}
     <div class="col">
