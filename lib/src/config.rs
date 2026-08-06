@@ -82,10 +82,54 @@ pub struct ManagerConfig {
     pub minimum_copies: u8,
     #[serde(default = "default_agent_timeout_seconds")]
     pub agent_timeout_seconds: u64,
+    #[serde(default)]
+    pub auth: AuthConfig,
 }
 
 fn default_agent_timeout_seconds() -> u64 {
     5
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct AuthConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_user_header")]
+    pub user_header: String,
+    #[serde(default = "default_role_header")]
+    pub role_header: String,
+    #[serde(default = "default_admin_role")]
+    pub admin_role: String,
+    #[serde(default = "default_reader_role")]
+    pub reader_role: String,
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            user_header: default_user_header(),
+            role_header: default_role_header(),
+            admin_role: default_admin_role(),
+            reader_role: default_reader_role(),
+        }
+    }
+}
+
+fn default_user_header() -> String {
+    "X-Proxy-User".to_string()
+}
+
+fn default_role_header() -> String {
+    "X-Proxy-Role".to_string()
+}
+
+fn default_admin_role() -> String {
+    "Admin".to_string()
+}
+
+fn default_reader_role() -> String {
+    "Reader".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -151,6 +195,39 @@ mod tests {
         assert!(data.is_ok());
         let config = data.unwrap();
         assert_eq!(config.manager.agent_timeout_seconds, 5);
+        assert!(!config.manager.auth.enabled);
+        assert_eq!(config.manager.auth.user_header, "X-Proxy-User");
+        assert_eq!(config.manager.auth.role_header, "X-Proxy-Role");
+    }
+
+    #[test]
+    fn test_manager_config_with_auth_serde() {
+        let data: Result<ManagerData, toml::de::Error> = toml::from_str(
+            r#"
+                [manager]
+                port = 8000
+                minimum_copies = 2
+
+                [manager.auth]
+                enabled = true
+                user_header = "X-Authentik-Username"
+                role_header = "X-Authentik-Groups"
+                admin_role = "stignore-admins"
+                reader_role = "stignore-readers"
+
+                [[agents]]
+                name = "Agent 1"
+                hostname = "localhost:3000"
+                api_key = "550e8400-e29b-41d4-a716-446655440000"
+            "#,
+        );
+        assert!(data.is_ok());
+        let config = data.unwrap();
+        assert!(config.manager.auth.enabled);
+        assert_eq!(config.manager.auth.user_header, "X-Authentik-Username");
+        assert_eq!(config.manager.auth.role_header, "X-Authentik-Groups");
+        assert_eq!(config.manager.auth.admin_role, "stignore-admins");
+        assert_eq!(config.manager.auth.reader_role, "stignore-readers");
     }
 
     #[test]

@@ -22,7 +22,7 @@
                 </td>
                 <td class="text-center">
                     <div class="form-check form-switch d-inline-block">
-                        <input class="form-check-input" type="checkbox" role="switch" id="toggle-agent-{{ loop.index }}" {% if agent.enabled %}checked{% endif %} onchange="toggleAgent('{{ agent.name }}', this.checked)">
+                        <input class="form-check-input" type="checkbox" role="switch" id="toggle-agent-{{ loop.index }}" {% if agent.enabled %}checked{% endif %} {% if auth_enabled and not is_admin %}disabled title="Admin role required"{% else %}onchange="toggleAgent('{{ agent.name }}', this.checked)"{% endif %}>
                     </div>
                 </td>
                 <td>

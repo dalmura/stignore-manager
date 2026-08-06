@@ -161,6 +161,7 @@ async fn test_multi_agent_aggregation_success() {
             port: 8080,
             minimum_copies: 2,
             agent_timeout_seconds: 5,
+            auth: AuthConfig::default(),
         },
         agents: vec![
             Agent {
@@ -202,6 +203,7 @@ async fn test_agent_partial_failure_handling() {
             port: 8080,
             minimum_copies: 2,
             agent_timeout_seconds: 5,
+            auth: AuthConfig::default(),
         },
         agents: vec![
             Agent {

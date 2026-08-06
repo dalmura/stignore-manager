@@ -110,8 +110,8 @@ async fn test_app_state_creation() {
 async fn test_humansize_filter_integration() {
     // Test the humansize filter function directly
     let test_cases = vec![
-        500.0,    // 500 KB input
-        1024.0,   // 1024 KB = 1 MB
+        500.0,     // 500 KB input
+        1024.0,    // 1024 KB = 1 MB
         1048576.0, // 1024*1024 KB = 1 GB
     ];
 

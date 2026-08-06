@@ -96,12 +96,19 @@ relative_path = "movies/"
 ```
 
 ### Manager Configuration
-Located in `manager/config.toml` - configured with manager port and list of agent hostnames/ports with matching API keys:
+Located in `manager/config.toml` - configured with manager port, agent list, and optional auth/RBAC settings:
 ```toml
 [manager]
 port = 8000
 minimum_copies = 2
 agent_timeout_seconds = 5
+
+[manager.auth]
+enabled = true                  # Optional header auth (defaults to false)
+user_header = "X-Proxy-User"    # Header for username
+role_header = "X-Proxy-Role"    # Header for role/group
+admin_role = "Admin"            # Admin role identifier
+reader_role = "Reader"          # Reader role identifier
 
 [[agents]]
 name = "Agent 1"
@@ -109,10 +116,9 @@ hostname = "localhost:3001"
 api_key = "550e8400-e29b-41d4-a716-446655440000"
 ```
 
-## Security
-- API key authentication secures all communication between manager and agents
-- Uses `X-API-Key` header with UUID-format keys (e.g., `550e8400-e29b-41d4-a716-446655440000`)
-- Each agent must have a matching API key in both agent and manager configurations
+## Security & Auth
+- **Agent API Key**: API key authentication (`X-API-Key`) secures communication between manager and agents.
+- **Header Auth & RBAC**: Reverse proxy header auth (e.g. Authentik, Authelia, Traefik). Supports `Admin` (full access) and `Reader` (read-only) roles. When auth is disabled, defaults to `Admin` for all requests.
 
 ## Use Cases
 - Managing `.stignore` files across multiple project locations

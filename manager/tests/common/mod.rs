@@ -16,6 +16,7 @@ pub fn create_test_config() -> ManagerData {
             port: 8080,
             minimum_copies: 2,
             agent_timeout_seconds: 5,
+            auth: AuthConfig::default(),
         },
         agents: vec![
             Agent {
@@ -68,7 +69,9 @@ pub fn create_test_app_state(config: ManagerData) -> AppState {
         context,
         config: config.clone(),
         agent_client: agent_client::AgentClient::with_timeout(config.manager.agent_timeout_seconds),
-        disabled_agents: std::sync::Arc::new(std::sync::RwLock::new(std::collections::HashSet::new())),
+        disabled_agents: std::sync::Arc::new(std::sync::RwLock::new(
+            std::collections::HashSet::new(),
+        )),
     }
 }
 
@@ -149,6 +152,7 @@ pub fn create_test_config_with_mock_server(server_uri: &str) -> ManagerData {
             port: 8080,
             minimum_copies: 2,
             agent_timeout_seconds: 5,
+            auth: AuthConfig::default(),
         },
         agents: vec![Agent {
             name: "test-agent-1".to_string(),

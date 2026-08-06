@@ -1,4 +1,6 @@
-use stignore_manager::{AppState, Context, TeraEngine, agent_client, config, create_app, humansize_filter};
+use stignore_manager::{
+    AppState, Context, TeraEngine, agent_client, config, create_app, humansize_filter,
+};
 
 use tera::Tera;
 use tracing_subscriber::fmt;
@@ -31,7 +33,9 @@ async fn main() {
         context,
         config: data.clone(),
         agent_client: agent_client::AgentClient::with_timeout(data.manager.agent_timeout_seconds),
-        disabled_agents: std::sync::Arc::new(std::sync::RwLock::new(std::collections::HashSet::new())),
+        disabled_agents: std::sync::Arc::new(std::sync::RwLock::new(
+            std::collections::HashSet::new(),
+        )),
     };
 
     let app = create_app(app_state);

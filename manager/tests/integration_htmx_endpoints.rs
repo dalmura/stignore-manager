@@ -165,7 +165,10 @@ async fn test_delete_details_endpoint_success() {
         "item_path": ["temp", "file.tmp"]
     });
 
-    let response = server.post("/components/delete-details").json(&request_body).await;
+    let response = server
+        .post("/components/delete-details")
+        .json(&request_body)
+        .await;
 
     response.assert_status_ok();
 
@@ -191,7 +194,10 @@ async fn test_delete_details_endpoint_invalid_agent() {
         "item_path": ["temp", "file.tmp"]
     });
 
-    let response = server.post("/components/delete-details").json(&request_body).await;
+    let response = server
+        .post("/components/delete-details")
+        .json(&request_body)
+        .await;
 
     response.assert_status_ok();
 
@@ -212,7 +218,10 @@ async fn test_delete_details_endpoint_empty_path() {
         "item_path": []
     });
 
-    let response = server.post("/components/delete-details").json(&request_body).await;
+    let response = server
+        .post("/components/delete-details")
+        .json(&request_body)
+        .await;
 
     response.assert_status_ok();
 
@@ -244,7 +253,10 @@ async fn test_bulk_ignore_endpoint_success() {
         "item_path": ["Movies", "Action", "movie.mkv"]
     });
 
-    let response = server.post("/components/bulk-ignore").json(&request_body).await;
+    let response = server
+        .post("/components/bulk-ignore")
+        .json(&request_body)
+        .await;
 
     response.assert_status_ok();
 
@@ -276,7 +288,10 @@ async fn test_bulk_delete_endpoint_success() {
         "item_path": ["Movies", "Action", "movie.mkv"]
     });
 
-    let response = server.post("/components/bulk-delete").json(&request_body).await;
+    let response = server
+        .post("/components/bulk-delete")
+        .json(&request_body)
+        .await;
 
     response.assert_status_ok();
 
@@ -308,7 +323,10 @@ async fn test_unignore_item_endpoint() {
         "item_path": ["Movies", "Action", "movie.mkv"]
     });
 
-    let response = server.post("/components/unignore").json(&request_body).await;
+    let response = server
+        .post("/components/unignore")
+        .json(&request_body)
+        .await;
 
     response.assert_status_ok();
 
@@ -339,7 +357,10 @@ async fn test_bulk_unignore_endpoint_success() {
         "item_path": ["Movies", "Action", "movie.mkv"]
     });
 
-    let response = server.post("/components/bulk-unignore").json(&request_body).await;
+    let response = server
+        .post("/components/bulk-unignore")
+        .json(&request_body)
+        .await;
 
     response.assert_status_ok();
 

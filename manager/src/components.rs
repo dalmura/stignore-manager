@@ -1,11 +1,13 @@
 use axum::{
     Json, Router,
     extract::{Query, State},
+    http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
 };
 
 use crate::agents;
+use crate::auth::{self, AuthUser};
 use axum_template::{Key, RenderHtml};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -81,11 +83,13 @@ fn convert_item_with_flags(item: &ItemGroup, minimum_copies: u8) -> ItemGroupWit
     converted
 }
 
-async fn itemlist(State(state): State<AppState>) -> impl IntoResponse {
+async fn itemlist(State(state): State<AppState>, auth_user: AuthUser) -> impl IntoResponse {
     let mut context = state.context.clone();
+    auth::inject_auth_context(&mut context, &auth_user);
 
     let disabled_agents = state.disabled_agents.read().unwrap().clone();
-    let response = agents::list_categories(&state.agent_client, state.config.agents, &disabled_agents).await;
+    let response =
+        agents::list_categories(&state.agent_client, state.config.agents, &disabled_agents).await;
     // Items are already sorted by agents::list_categories
 
     // Convert to ItemGroupWithFlags with has_insufficient_copies field
@@ -303,9 +307,11 @@ async fn calculate_sync_status(
 
 async fn infopanel(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Json(payload): Json<InfoPanelRequest>,
 ) -> impl IntoResponse {
     let mut context = state.context.clone();
+    auth::inject_auth_context(&mut context, &auth_user);
 
     let item_path: Vec<&str> = payload
         .item_path
@@ -316,7 +322,14 @@ async fn infopanel(
 
     let disabled_agents = state.disabled_agents.read().unwrap().clone();
 
-    match agents::item_info(&state.agent_client, state.config.agents, item_path, &disabled_agents).await {
+    match agents::item_info(
+        &state.agent_client,
+        state.config.agents,
+        item_path,
+        &disabled_agents,
+    )
+    .await
+    {
         Ok(response) => {
             let agent_items_with_status = calculate_sync_status(
                 &state.agent_client,
@@ -355,9 +368,11 @@ async fn infopanel(
 
 async fn agent_modal(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Json(payload): Json<AgentModalRequest>,
 ) -> impl IntoResponse {
     let mut context = state.context.clone();
+    auth::inject_auth_context(&mut context, &auth_user);
 
     // Filter out empty strings from item_path
     let item_path_parts: Vec<&str> = payload
@@ -457,8 +472,19 @@ async fn agent_modal(
 
 async fn ignore_item(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Json(payload): Json<IgnoreItemRequest>,
 ) -> impl IntoResponse {
+    if !auth_user.is_admin() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(IgnoreItemResponse {
+                success: false,
+                message: "Access denied: Admin role required".to_string(),
+            }),
+        )
+            .into_response();
+    }
     // Find the agent by name
     let agent = match state
         .config
@@ -471,7 +497,8 @@ async fn ignore_item(
             return Json(IgnoreItemResponse {
                 success: false,
                 message: format!("Agent '{}' not found", payload.agent_name),
-            });
+            })
+            .into_response();
         }
     };
 
@@ -488,7 +515,8 @@ async fn ignore_item(
         return Json(IgnoreItemResponse {
             success: false,
             message: "No valid path provided".to_string(),
-        });
+        })
+        .into_response();
     } else {
         let category_id = filtered_item_path[0].clone();
         // Use remaining items from item_path for folder path (skip the first one which is the category)
@@ -512,18 +540,31 @@ async fn ignore_item(
         Ok(_) => Json(IgnoreItemResponse {
             success: true,
             message: format!("Successfully ignored item on {}", agent.name),
-        }),
+        })
+        .into_response(),
         Err(e) => Json(IgnoreItemResponse {
             success: false,
             message: format!("Failed to ignore item: {}", e),
-        }),
+        })
+        .into_response(),
     }
 }
 
 async fn unignore_item(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Json(payload): Json<IgnoreItemRequest>,
 ) -> impl IntoResponse {
+    if !auth_user.is_admin() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(IgnoreItemResponse {
+                success: false,
+                message: "Access denied: Admin role required".to_string(),
+            }),
+        )
+            .into_response();
+    }
     let agent = match state
         .config
         .agents
@@ -535,7 +576,8 @@ async fn unignore_item(
             return Json(IgnoreItemResponse {
                 success: false,
                 message: format!("Agent '{}' not found", payload.agent_name),
-            });
+            })
+            .into_response();
         }
     };
 
@@ -550,7 +592,8 @@ async fn unignore_item(
         return Json(IgnoreItemResponse {
             success: false,
             message: "No valid path provided".to_string(),
-        });
+        })
+        .into_response();
     } else {
         let category_id = filtered_item_path[0].clone();
         let folder_path = if filtered_item_path.len() > 1 {
@@ -567,22 +610,39 @@ async fn unignore_item(
         folder_path,
     };
 
-    match state.agent_client.unignore_item(agent, &unignore_request).await {
+    match state
+        .agent_client
+        .unignore_item(agent, &unignore_request)
+        .await
+    {
         Ok(_) => Json(IgnoreItemResponse {
             success: true,
             message: format!("Successfully un-ignored item on {}", agent.name),
-        }),
+        })
+        .into_response(),
         Err(e) => Json(IgnoreItemResponse {
             success: false,
             message: format!("Failed to un-ignore item: {}", e),
-        }),
+        })
+        .into_response(),
     }
 }
 
 async fn delete_item(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Json(payload): Json<DeleteItemRequest>,
 ) -> impl IntoResponse {
+    if !auth_user.is_admin() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(DeleteItemResponse {
+                success: false,
+                message: "Access denied: Admin role required".to_string(),
+            }),
+        )
+            .into_response();
+    }
     // Find the agent by name
     let agent = match state
         .config
@@ -595,7 +655,8 @@ async fn delete_item(
             return Json(DeleteItemResponse {
                 success: false,
                 message: format!("Agent '{}' not found", payload.agent_name),
-            });
+            })
+            .into_response();
         }
     };
 
@@ -612,7 +673,8 @@ async fn delete_item(
         return Json(DeleteItemResponse {
             success: false,
             message: "No valid path provided".to_string(),
-        });
+        })
+        .into_response();
     } else {
         let category_id = filtered_item_path[0].clone();
         // Use remaining items from item_path for folder path (skip the first one which is the category)
@@ -636,11 +698,13 @@ async fn delete_item(
         Ok(_) => Json(DeleteItemResponse {
             success: true,
             message: format!("Successfully deleted item on {}", agent.name),
-        }),
+        })
+        .into_response(),
         Err(e) => Json(DeleteItemResponse {
             success: false,
             message: format!("Failed to delete item: {}", e),
-        }),
+        })
+        .into_response(),
     }
 }
 
@@ -664,8 +728,25 @@ pub struct DeleteItemDetailsResponse {
 
 async fn delete_item_details(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Json(payload): Json<DeleteItemDetailsRequest>,
 ) -> impl IntoResponse {
+    if !auth_user.is_admin() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(DeleteItemDetailsResponse {
+                success: false,
+                message: Some("Access denied: Admin role required".to_string()),
+                name: String::new(),
+                is_leaf: false,
+                is_dir: false,
+                size_kb: 0,
+                item_count: 0,
+                agent_name: payload.agent_name,
+            }),
+        )
+            .into_response();
+    }
     // Find the agent by name
     let agent = match state
         .config
@@ -684,7 +765,8 @@ async fn delete_item_details(
                 size_kb: 0,
                 item_count: 0,
                 agent_name: payload.agent_name,
-            });
+            })
+            .into_response();
         }
     };
 
@@ -706,7 +788,8 @@ async fn delete_item_details(
             size_kb: 0,
             item_count: 0,
             agent_name: payload.agent_name,
-        });
+        })
+        .into_response();
     }
 
     let request = AgentItemInfoRequest {
@@ -726,6 +809,7 @@ async fn delete_item_details(
                 item_count: resp.item.items.len(),
                 agent_name: agent.name.clone(),
             })
+            .into_response()
         }
         Err(e) => Json(DeleteItemDetailsResponse {
             success: false,
@@ -736,7 +820,8 @@ async fn delete_item_details(
             size_kb: 0,
             item_count: 0,
             agent_name: payload.agent_name,
-        }),
+        })
+        .into_response(),
     }
 }
 
@@ -768,8 +853,20 @@ pub struct BulkActionResponse {
 
 async fn bulk_ignore_item(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Json(payload): Json<BulkIgnoreRequest>,
 ) -> impl IntoResponse {
+    if !auth_user.is_admin() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(BulkActionResponse {
+                success: false,
+                message: "Access denied: Admin role required".to_string(),
+                results: vec![],
+            }),
+        )
+            .into_response();
+    }
     let filtered_item_path: Vec<String> = payload
         .item_path
         .iter()
@@ -782,7 +879,8 @@ async fn bulk_ignore_item(
             success: false,
             message: "No valid path provided".to_string(),
             results: vec![],
-        });
+        })
+        .into_response();
     }
 
     let category_id = filtered_item_path[0].clone();
@@ -836,12 +934,25 @@ async fn bulk_ignore_item(
         },
         results,
     })
+    .into_response()
 }
 
 async fn bulk_unignore_item(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Json(payload): Json<BulkIgnoreRequest>,
 ) -> impl IntoResponse {
+    if !auth_user.is_admin() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(BulkActionResponse {
+                success: false,
+                message: "Access denied: Admin role required".to_string(),
+                results: vec![],
+            }),
+        )
+            .into_response();
+    }
     let filtered_item_path: Vec<String> = payload
         .item_path
         .iter()
@@ -854,7 +965,8 @@ async fn bulk_unignore_item(
             success: false,
             message: "No valid path provided".to_string(),
             results: vec![],
-        });
+        })
+        .into_response();
     }
 
     let category_id = filtered_item_path[0].clone();
@@ -874,7 +986,11 @@ async fn bulk_unignore_item(
 
     for agent_name in &payload.agent_names {
         if let Some(agent) = state.config.agents.iter().find(|a| &a.name == agent_name) {
-            match state.agent_client.unignore_item(agent, &unignore_request).await {
+            match state
+                .agent_client
+                .unignore_item(agent, &unignore_request)
+                .await
+            {
                 Ok(_) => results.push(BulkActionResult {
                     agent_name: agent_name.clone(),
                     success: true,
@@ -902,18 +1018,34 @@ async fn bulk_unignore_item(
     Json(BulkActionResponse {
         success: overall_success,
         message: if overall_success {
-            format!("Successfully un-ignored item across {} agents", results.len())
+            format!(
+                "Successfully un-ignored item across {} agents",
+                results.len()
+            )
         } else {
             "Bulk un-ignore completed with errors".to_string()
         },
         results,
     })
+    .into_response()
 }
 
 async fn bulk_delete_item(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Json(payload): Json<BulkDeleteRequest>,
 ) -> impl IntoResponse {
+    if !auth_user.is_admin() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(BulkActionResponse {
+                success: false,
+                message: "Access denied: Admin role required".to_string(),
+                results: vec![],
+            }),
+        )
+            .into_response();
+    }
     let filtered_item_path: Vec<String> = payload
         .item_path
         .iter()
@@ -926,7 +1058,8 @@ async fn bulk_delete_item(
             success: false,
             message: "No valid path provided".to_string(),
             results: vec![],
-        });
+        })
+        .into_response();
     }
 
     let category_id = filtered_item_path[0].clone();
@@ -980,12 +1113,26 @@ async fn bulk_delete_item(
         },
         results,
     })
+    .into_response()
 }
 
 async fn toggle_agent(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Json(payload): Json<ToggleAgentRequest>,
 ) -> impl IntoResponse {
+    if !auth_user.is_admin() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(ToggleAgentResponse {
+                success: false,
+                message: "Access denied: Admin role required".to_string(),
+                agent_name: payload.agent_name,
+                enabled: payload.enabled,
+            }),
+        )
+            .into_response();
+    }
     let mut disabled = state.disabled_agents.write().unwrap();
     if payload.enabled {
         disabled.remove(&payload.agent_name);
@@ -993,17 +1140,23 @@ async fn toggle_agent(
         disabled.insert(payload.agent_name.clone());
     }
 
-    let status_str = if payload.enabled { "enabled" } else { "disabled" };
+    let status_str = if payload.enabled {
+        "enabled"
+    } else {
+        "disabled"
+    };
     Json(ToggleAgentResponse {
         success: true,
         message: format!("Agent '{}' is now {}", payload.agent_name, status_str),
         agent_name: payload.agent_name,
         enabled: payload.enabled,
     })
+    .into_response()
 }
 
-async fn agents_table(State(state): State<AppState>) -> impl IntoResponse {
+async fn agents_table(State(state): State<AppState>, auth_user: AuthUser) -> impl IntoResponse {
     let mut context = state.context.clone();
+    auth::inject_auth_context(&mut context, &auth_user);
     let agent_summaries = crate::pages::build_agent_summaries(&state).await;
     context.insert("agents", &agent_summaries);
 
@@ -1016,9 +1169,11 @@ async fn agents_table(State(state): State<AppState>) -> impl IntoResponse {
 
 async fn dynamic_items(
     State(state): State<AppState>,
+    auth_user: AuthUser,
     Query(query): Query<DynamicItemsQuery>,
 ) -> impl IntoResponse {
     let mut context = state.context.clone();
+    auth::inject_auth_context(&mut context, &auth_user);
 
     // Decode the parent_path from base64
     let decoded_parent_path = match unsanitize_id(&query.parent_path) {
@@ -1039,7 +1194,8 @@ async fn dynamic_items(
     };
 
     let disabled_agents = state.disabled_agents.read().unwrap().clone();
-    let response = agents::list_categories(&state.agent_client, state.config.agents, &disabled_agents).await;
+    let response =
+        agents::list_categories(&state.agent_client, state.config.agents, &disabled_agents).await;
 
     let found_items = if query.level == 2 {
         // Level 2: Find direct children of top-level category

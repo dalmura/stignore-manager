@@ -25,8 +25,11 @@ pub struct AgentSummary {
     pub latency_ms: Option<u128>,
 }
 
-pub async fn root(State(state): State<AppState>) -> impl IntoResponse {
+use crate::auth::{self, AuthUser};
+
+pub async fn root(State(state): State<AppState>, auth_user: AuthUser) -> impl IntoResponse {
     let mut context = state.context.clone();
+    auth::inject_auth_context(&mut context, &auth_user);
     context.insert("page_title", "Index");
     context.insert("current_page", "home");
     context.insert("message", "Welcome to stignore-manager.");
@@ -109,7 +112,9 @@ pub async fn build_agent_summaries(state: &AppState) -> Vec<AgentSummary> {
                     // Agent is not reachable, determine the type of error
                     let status = match e {
                         crate::agent_client::AgentError::Timeout(_) => "Timeout".to_string(),
-                        crate::agent_client::AgentError::RequestFailed(_) => "Unreachable".to_string(),
+                        crate::agent_client::AgentError::RequestFailed(_) => {
+                            "Unreachable".to_string()
+                        }
                         crate::agent_client::AgentError::InvalidResponse(_) => "Error".to_string(),
                         crate::agent_client::AgentError::OperationFailed(_) => "Error".to_string(),
                     };
@@ -155,8 +160,12 @@ pub async fn build_agent_summaries(state: &AppState) -> Vec<AgentSummary> {
     agent_summaries
 }
 
-pub async fn agents_overview(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn agents_overview(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+) -> impl IntoResponse {
     let mut context = state.context.clone();
+    auth::inject_auth_context(&mut context, &auth_user);
     context.insert("page_title", "Agents Overview");
     context.insert("current_page", "agents");
 
@@ -170,8 +179,9 @@ pub async fn agents_overview(State(state): State<AppState>) -> impl IntoResponse
     )
 }
 
-pub async fn not_found(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn not_found(State(state): State<AppState>, auth_user: AuthUser) -> impl IntoResponse {
     let mut context = state.context.clone();
+    auth::inject_auth_context(&mut context, &auth_user);
     context.insert("page_title", "Not Found");
     context.insert("current_page", ""); // No active nav for 404 pages
     context.insert("message", "Whatever you are looking for isn't here!");

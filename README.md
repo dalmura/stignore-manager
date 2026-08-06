@@ -98,16 +98,27 @@ port = 8000
 minimum_copies = 2
 agent_timeout_seconds = 5
 
+# Optional proxy header authentication & RBAC (Authentik, Authelia, Traefik, Nginx)
+[manager.auth]
+enabled = true                  # Defaults to false
+user_header = "X-Proxy-User"    # Configurable, defaults to "X-Proxy-User"
+role_header = "X-Proxy-Role"    # Configurable, defaults to "X-Proxy-Role"
+admin_role = "Admin"            # Configurable, defaults to "Admin"
+reader_role = "Reader"          # Configurable, defaults to "Reader"
+
 [[agents]]
 name = "Agent 1"
 hostname = "localhost:3001"
 api_key = "550e8400-e29b-41d4-a716-446655440000"
 ```
 
-## Security
-- API key authentication secures all communication between manager and agents
-- Uses `X-API-Key` header with UUID-format keys
-- Each agent must have a matching API key in both agent and manager configurations
+## Security & Authentication
+- **Agent API Keys**: Uses `X-API-Key` header with matching UUID keys to secure manager-to-agent communication.
+- **Proxy Header Auth & RBAC (Optional)**: Secures `stignore-manager` when placed behind a reverse proxy (e.g., Authentik):
+  - Extracts username from `user_header` (e.g. `X-Proxy-User`) and assigned roles/groups from `role_header` (e.g. `X-Proxy-Role`).
+  - **`Admin`**: Full access to browse filesystem data, ignore/unignore items, delete items, and toggle agents.
+  - **`Reader`**: Read-only access to browse files and view agent statuses; write operations return `403 Forbidden`.
+  - When disabled (`enabled = false`), all requests implicitly run with `Admin` privileges for backward compatibility.
 
 ## Use Cases
 - Managing `.stignore` files across multiple project locations

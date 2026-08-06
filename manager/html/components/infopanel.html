@@ -27,13 +27,13 @@
                     <span class="bulk-actions-label small">Bulk operations across selected agents:</span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <button class="btn btn-warning btn-sm d-flex align-items-center" onclick="performBulkIgnore()">
+                    <button class="btn btn-warning btn-sm d-flex align-items-center" {% if auth_enabled and not is_admin %}disabled title="Admin role required"{% else %}onclick="performBulkIgnore()"{% endif %}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
                             <path d="M12 2C17.52 2 22 6.48 22 12S17.52 22 12 22 2 17.52 2 12 6.48 2 12 2M15.54 9L14.46 7.88L12 10.34L9.54 7.88L8.46 9L10.92 11.46L8.46 13.92L9.54 15.04L12 12.58L14.46 15.04L15.54 13.92L13.08 11.46L15.54 9Z"/>
                         </svg>
                         Ignore Selected
                     </button>
-                    <button class="btn btn-danger btn-sm d-flex align-items-center" onclick="setupBulkDeleteModal()">
+                    <button class="btn btn-danger btn-sm d-flex align-items-center" {% if auth_enabled and not is_admin %}disabled title="Admin role required"{% else %}onclick="setupBulkDeleteModal()"{% endif %}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
                             <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
                         </svg>
@@ -114,12 +114,14 @@
                             {% else %}
                             <button class="btn btn-warning btn-sm d-flex align-items-center"
                                     id="ignore-btn-{{ i.agent.name | replace(from=' ', to='-') | lower }}"
+                                    {% if auth_enabled and not is_admin %}disabled title="Admin role required"{% else %}
                                     data-bs-toggle="modal"
                                     data-bs-target="#ignoreModal"
                                     data-agent-name="{{ i.agent.name }}"
                                     data-item-path="{{ item_path | join(sep=',') }}"
                                     data-item-name="{{ parent_names | join(sep=' / ') }}"
-                                    onclick="setupIgnoreModal(this)">
+                                    onclick="setupIgnoreModal(this)"
+                                    {% endif %}>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
                                     <path d="M12 2C17.52 2 22 6.48 22 12S17.52 22 12 22 2 17.52 2 12 6.48 2 12 2M15.54 9L14.46 7.88L12 10.34L9.54 7.88L8.46 9L10.92 11.46L8.46 13.92L9.54 15.04L12 12.58L14.46 15.04L15.54 13.92L13.08 11.46L15.54 9Z"/>
                                 </svg>
@@ -129,12 +131,14 @@
                             {% if i.sync_status != "Missing" %}
                             <button class="btn btn-danger btn-sm d-flex align-items-center"
                                     id="delete-btn-{{ i.agent.name | replace(from=' ', to='-') | lower }}"
+                                    {% if auth_enabled and not is_admin %}disabled title="Admin role required"{% else %}
                                     data-bs-toggle="modal"
                                     data-bs-target="#deleteModal"
                                     data-agent-name="{{ i.agent.name }}"
                                     data-item-path="{{ item_path | join(sep=',') }}"
                                     data-item-name="{{ parent_names | join(sep=' / ') }}"
-                                    onclick="setupDeleteModal(this)">
+                                    onclick="setupDeleteModal(this)"
+                                    {% endif %}>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
                                     <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
                                 </svg>

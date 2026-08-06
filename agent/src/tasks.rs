@@ -260,11 +260,8 @@ pub async fn post_unignore(
     };
 
     let category_base_path = build_category_base_path(&data.agent, category);
-    let result = filesystem::remove_from_stignore(
-        &category_base_path,
-        &payload.folder_path,
-        &category.name,
-    );
+    let result =
+        filesystem::remove_from_stignore(&category_base_path, &payload.folder_path, &category.name);
 
     match result {
         filesystem::StignoreResult::Success {

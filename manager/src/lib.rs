@@ -1,14 +1,15 @@
 pub mod agent_client;
 pub mod agents;
+pub mod auth;
 pub mod components;
 pub mod config;
 pub mod pages;
 
-use axum_template::TemplateEngine;
 use axum::extract::FromRef;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{Router, routing::get};
+use axum_template::TemplateEngine;
 use tera::Value;
 use tower_http::compression::CompressionLayer;
 use tower_http::services::{ServeDir, ServeFile};
