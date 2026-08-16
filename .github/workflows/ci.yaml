@@ -16,7 +16,7 @@ env:
 
 jobs:
   clippy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v5
@@ -27,7 +27,7 @@ jobs:
         run: cargo clippy --all-targets --all-features
 
   rustfmt:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v5
@@ -38,7 +38,7 @@ jobs:
         run: cargo fmt --check
 
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - clippy
       - rustfmt

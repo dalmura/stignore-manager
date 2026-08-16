@@ -155,8 +155,8 @@ git push origin main
 ### 4. Create and Push a Git Tag
 Push a git tag matching the version (prefixed with `v`):
 ```bash
-git tag v1.4.0
-git push origin v1.4.0
+git tag v1.4.1
+git push --tags
 ```
 
 ### 5. Automated CI/CD Pipeline

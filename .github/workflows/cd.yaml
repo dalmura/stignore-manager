@@ -11,9 +11,58 @@ permissions:
   contents: write
   packages: write
 
+env:
+  RUSTFLAGS: "-Dwarnings"
+
 jobs:
+  clippy:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: clippy
+      - name: Clippy Check
+        run: cargo clippy --all-targets --all-features
+
+  rustfmt:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt
+      - name: Rustfmt Check
+        run: cargo fmt --check
+
+  tests:
+    runs-on: ubuntu-24.04
+    needs:
+      - clippy
+      - rustfmt
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Run Tests
+        run: cargo test --all-features
+
   build_container:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    needs: tests
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+    outputs:
+      version: ${{ steps.versions.outputs.version }}
 
     steps:
       - uses: actions/checkout@v5
@@ -23,9 +72,6 @@ jobs:
         run: |
           VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml', 'rb'))['workspace']['package']['version'])")
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -41,11 +87,10 @@ jobs:
         id: docker_build_manager
         uses: docker/build-push-action@v6
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
           tags: |
-            ghcr.io/dalmura/stignore-manager:latest
-            ghcr.io/dalmura/stignore-manager:v${{ steps.versions.outputs.version }}
+            ghcr.io/dalmura/stignore-manager:build-${{ steps.versions.outputs.version }}-${{ matrix.arch }}
           target: manager
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -54,17 +99,58 @@ jobs:
         id: docker_build_agent
         uses: docker/build-push-action@v6
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
           tags: |
-            ghcr.io/dalmura/stignore-agent:latest
-            ghcr.io/dalmura/stignore-agent:v${{ steps.versions.outputs.version }}
+            ghcr.io/dalmura/stignore-agent:build-${{ steps.versions.outputs.version }}-${{ matrix.arch }}
           target: agent
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  merge_and_publish:
+    runs-on: ubuntu-24.04
+    needs: build_container
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Extract workspace version
+        id: versions
+        run: |
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml', 'rb'))['workspace']['package']['version'])")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge and push manager multi-arch image
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/dalmura/stignore-manager:latest \
+            -t ghcr.io/dalmura/stignore-manager:v${{ steps.versions.outputs.version }} \
+            ghcr.io/dalmura/stignore-manager:build-${{ steps.versions.outputs.version }}-amd64 \
+            ghcr.io/dalmura/stignore-manager:build-${{ steps.versions.outputs.version }}-arm64
+
+      - name: Merge and push agent multi-arch image
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/dalmura/stignore-agent:latest \
+            -t ghcr.io/dalmura/stignore-agent:v${{ steps.versions.outputs.version }} \
+            ghcr.io/dalmura/stignore-agent:build-${{ steps.versions.outputs.version }}-amd64 \
+            ghcr.io/dalmura/stignore-agent:build-${{ steps.versions.outputs.version }}-arm64
+
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    needs:
+      - tests
+      - merge_and_publish
 
     steps:
       - uses: actions/checkout@v5

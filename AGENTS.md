@@ -137,6 +137,6 @@ api_key = "550e8400-e29b-41d4-a716-446655440000"
 1. Bump workspace version in root `Cargo.toml` (`[workspace.package] version = "X.Y.Z"`).
 2. Validate locally (syncs `Cargo.lock`): `cargo fmt --check && cargo clippy --all-targets --all-features && cargo test`.
 3. Commit and push `Cargo.toml` and `Cargo.lock` to main: `git commit -am "chore: bump version to vX.Y.Z" && git push origin main`.
-4. Tag and push release: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. Tag and push release: `git tag vX.Y.Z && git push --tags`.
 5. GitHub Actions (`.github/workflows/cd.yaml`) will automatically build multi-arch containers, publish to GHCR, and create GitHub Releases.
 
