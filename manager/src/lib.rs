@@ -110,9 +110,15 @@ pub fn humansize_filter(
     Ok(Value::from(formatted))
 }
 
+async fn health_check() -> &'static str {
+    "OK"
+}
+
 pub fn create_app(state: AppState) -> Router {
     Router::new()
         .route("/", get(pages::root))
+        .route("/health", get(health_check))
+        .route("/healthz", get(health_check))
         .route("/agents", get(pages::agents_overview))
         .route_service("/favicon.ico", ServeFile::new("assets/favicon.ico"))
         .nest_service("/assets", ServeDir::new("assets"))

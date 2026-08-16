@@ -2,23 +2,26 @@ use stignore_manager::{
     AppState, Context, TeraEngine, agent_client, config, create_app, humansize_filter,
 };
 
-use tera::Tera;
-use tracing_subscriber::fmt;
-
 use std::env;
+use tera::Tera;
 
 use tokio::signal;
 
 #[tokio::main]
 async fn main() {
     /* initialize tracing */
-    fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
 
     /* load config */
     let args: Vec<String> = env::args().collect();
-    let config_filename = &args[1];
+    let explicit_config = args.get(1).map(|s| s.as_str());
 
-    let data = config::load_config(config_filename);
+    let data = config::load_config(explicit_config);
 
     /* setup templates and context */
     let mut tera = Tera::default();

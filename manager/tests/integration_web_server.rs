@@ -82,13 +82,30 @@ async fn test_config_loading_integration() {
     let temp_config = create_test_config_file().await;
 
     // Load config from file
-    let loaded_config = stignore_manager::config::load_config(temp_config.path().to_str().unwrap());
+    let loaded_config =
+        stignore_manager::config::load_config(Some(temp_config.path().to_str().unwrap()));
 
     assert_eq!(loaded_config.manager.port, 8080);
     assert_eq!(loaded_config.manager.minimum_copies, 2);
     assert_eq!(loaded_config.agents.len(), 2);
     assert_eq!(loaded_config.agents[0].name, "test-agent-1");
     assert_eq!(loaded_config.agents[1].name, "test-agent-2");
+}
+
+#[tokio::test]
+async fn test_health_endpoints() {
+    let config = create_test_config();
+    let app = create_test_app(config);
+
+    let server = TestServer::new(app).unwrap();
+
+    let response = server.get("/health").await;
+    response.assert_status_ok();
+    assert_eq!(response.text(), "OK");
+
+    let response_z = server.get("/healthz").await;
+    response_z.assert_status_ok();
+    assert_eq!(response_z.text(), "OK");
 }
 
 #[tokio::test]

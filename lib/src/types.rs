@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use std::ops::Add;
 
+pub const AGENT_API_V1_PREFIX: &str = "api/v1";
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ItemGroup {
     pub id: String,

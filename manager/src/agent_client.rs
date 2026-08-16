@@ -25,9 +25,32 @@ impl std::fmt::Display for AgentError {
 
 impl std::error::Error for AgentError {}
 
+pub const DEFAULT_API_PREFIX: &str = AGENT_API_V1_PREFIX;
+
 #[derive(Clone)]
 pub struct AgentClient {
     client: Client,
+    api_prefix: String,
+}
+
+pub fn format_agent_url(hostname: &str, api_prefix: &str, endpoint: &str) -> String {
+    let hostname = hostname.trim();
+    let base = if hostname.starts_with("http://") || hostname.starts_with("https://") {
+        hostname.trim_end_matches('/').to_string()
+    } else if hostname.ends_with(":443") {
+        format!("https://{}", hostname.trim_end_matches('/'))
+    } else {
+        format!("http://{}", hostname.trim_end_matches('/'))
+    };
+
+    let prefix = api_prefix.trim_matches('/');
+    let endpoint = endpoint.trim_start_matches('/');
+
+    if prefix.is_empty() {
+        format!("{}/{}", base, endpoint)
+    } else {
+        format!("{}/{}/{}", base, prefix, endpoint)
+    }
 }
 
 impl AgentClient {
@@ -36,12 +59,21 @@ impl AgentClient {
     }
 
     pub fn with_timeout(timeout_seconds: u64) -> Self {
+        Self::with_timeout_and_prefix(timeout_seconds, DEFAULT_API_PREFIX)
+    }
+
+    pub fn with_timeout_and_prefix(timeout_seconds: u64, api_prefix: impl Into<String>) -> Self {
         Self {
             client: Client::builder()
                 .timeout(Duration::from_secs(timeout_seconds))
                 .build()
                 .expect("Failed to build HTTP client"),
+            api_prefix: api_prefix.into(),
         }
+    }
+
+    pub fn api_prefix(&self) -> &str {
+        &self.api_prefix
     }
 
     /// Generic method to make authenticated requests to agents
@@ -56,7 +88,7 @@ impl AgentClient {
         T: Serialize,
         R: for<'de> Deserialize<'de>,
     {
-        let url = format!("http://{}/api/v1/{}", agent.hostname, endpoint);
+        let url = format_agent_url(&agent.hostname, &self.api_prefix, endpoint);
         tracing::debug!(
             "Making {} request to agent '{}' at URL: {}",
             method,
@@ -253,5 +285,58 @@ impl AgentClient {
 impl Default for AgentClient {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_agent_url_plain_host() {
+        assert_eq!(
+            format_agent_url("localhost:3000", DEFAULT_API_PREFIX, "categories"),
+            "http://localhost:3000/api/v1/categories"
+        );
+    }
+
+    #[test]
+    fn test_format_agent_url_http_prefix() {
+        assert_eq!(
+            format_agent_url("http://agent.local:3000/", DEFAULT_API_PREFIX, "categories"),
+            "http://agent.local:3000/api/v1/categories"
+        );
+    }
+
+    #[test]
+    fn test_format_agent_url_https_prefix() {
+        assert_eq!(
+            format_agent_url("https://agent.dalmura.cloud", DEFAULT_API_PREFIX, "items"),
+            "https://agent.dalmura.cloud/api/v1/items"
+        );
+    }
+
+    #[test]
+    fn test_format_agent_url_port_443_implicit_https() {
+        assert_eq!(
+            format_agent_url("agent.dalmura.cloud:443", DEFAULT_API_PREFIX, "categories"),
+            "https://agent.dalmura.cloud:443/api/v1/categories"
+        );
+    }
+
+    #[test]
+    fn test_format_agent_url_custom_prefix() {
+        assert_eq!(
+            format_agent_url("agent.dalmura.cloud", "api/v2", "categories"),
+            "http://agent.dalmura.cloud/api/v2/categories"
+        );
+    }
+
+    #[test]
+    fn test_format_agent_url_empty_prefix() {
+        assert_eq!(
+            format_agent_url("https://agent.dalmura.cloud", "", "health"),
+            "https://agent.dalmura.cloud/health"
+        );
     }
 }

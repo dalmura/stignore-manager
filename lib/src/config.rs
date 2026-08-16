@@ -56,13 +56,167 @@ pub struct AgentData {
     pub categories: Vec<Category>,
 }
 
+/// Expands environment variable placeholders in text.
+/// Supports both `${VAR_NAME}` and `$VAR_NAME` syntax.
+/// If an environment variable is not set, the placeholder remains unchanged.
+pub fn expand_env_vars(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '$' {
+            if chars.peek() == Some(&'{') {
+                chars.next(); // consume '{'
+                let mut var_name = String::new();
+                let mut closed = false;
+                while let Some(&c) = chars.peek() {
+                    if c == '}' {
+                        chars.next(); // consume '}'
+                        closed = true;
+                        break;
+                    }
+                    if c.is_alphanumeric() || c == '_' {
+                        var_name.push(c);
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                if closed && !var_name.is_empty() {
+                    match std::env::var(&var_name) {
+                        Ok(val) => result.push_str(&val),
+                        Err(_) => {
+                            result.push('$');
+                            result.push('{');
+                            result.push_str(&var_name);
+                            result.push('}');
+                        }
+                    }
+                } else {
+                    result.push('$');
+                    result.push('{');
+                    result.push_str(&var_name);
+                }
+            } else {
+                let mut var_name = String::new();
+                while let Some(&c) = chars.peek() {
+                    if c.is_alphanumeric() || c == '_' {
+                        var_name.push(c);
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                if !var_name.is_empty() {
+                    match std::env::var(&var_name) {
+                        Ok(val) => result.push_str(&val),
+                        Err(_) => {
+                            result.push('$');
+                            result.push_str(&var_name);
+                        }
+                    }
+                } else {
+                    result.push('$');
+                }
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+    result
+}
+
+/// Resolves the configuration file path from explicit arguments, environment variables,
+/// or a list of default search paths.
+pub fn resolve_config_path(explicit: Option<&str>, default_locations: &[&str]) -> Option<String> {
+    if let Some(path) = explicit
+        && !path.is_empty()
+    {
+        return Some(path.to_string());
+    }
+
+    if let Ok(path) = std::env::var("STIGNORE_CONFIG")
+        && !path.is_empty()
+    {
+        return Some(path);
+    }
+
+    if let Ok(path) = std::env::var("CONFIG_PATH")
+        && !path.is_empty()
+    {
+        return Some(path);
+    }
+
+    for path in default_locations {
+        if std::path::Path::new(path).exists() {
+            return Some(path.to_string());
+        }
+    }
+
+    None
+}
+
+/// Applies environment variable overrides to a ManagerData configuration.
+pub fn apply_manager_env_overrides(mut data: ManagerData) -> ManagerData {
+    if let Ok(port_str) = std::env::var("STIGNORE_PORT")
+        .or_else(|_| std::env::var("PORT"))
+        .or_else(|_| std::env::var("STIGNORE_MANAGER_PORT"))
+        && let Ok(port) = port_str.parse::<u16>()
+    {
+        data.manager.port = port;
+    }
+
+    if let Ok(min_copies_str) = std::env::var("STIGNORE_MINIMUM_COPIES")
+        && let Ok(min_copies) = min_copies_str.parse::<u8>()
+    {
+        data.manager.minimum_copies = min_copies;
+    }
+
+    if let Ok(timeout_str) = std::env::var("STIGNORE_AGENT_TIMEOUT_SECONDS")
+        && let Ok(timeout) = timeout_str.parse::<u64>()
+    {
+        data.manager.agent_timeout_seconds = timeout;
+    }
+
+    if let Ok(auth_enabled_str) = std::env::var("STIGNORE_AUTH_ENABLED") {
+        let is_enabled = match auth_enabled_str.to_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Some(true),
+            "0" | "false" | "no" | "off" => Some(false),
+            _ => None,
+        };
+        if let Some(enabled) = is_enabled {
+            data.manager.auth.enabled = enabled;
+        }
+    }
+
+    if let Ok(user_header) = std::env::var("STIGNORE_AUTH_USER_HEADER") {
+        data.manager.auth.user_header = user_header;
+    }
+
+    if let Ok(role_header) = std::env::var("STIGNORE_AUTH_ROLE_HEADER") {
+        data.manager.auth.role_header = role_header;
+    }
+
+    if let Ok(admin_role) = std::env::var("STIGNORE_AUTH_ADMIN_ROLE") {
+        data.manager.auth.admin_role = admin_role;
+    }
+
+    if let Ok(reader_role) = std::env::var("STIGNORE_AUTH_READER_ROLE") {
+        data.manager.auth.reader_role = reader_role;
+    }
+
+    data
+}
+
 pub fn load_agent_config(filename: &str) -> Result<AgentData, ConfigError> {
     let contents = fs::read_to_string(filename).map_err(|source| ConfigError::FileRead {
         filename: filename.to_string(),
         source,
     })?;
 
-    let data: AgentData = toml::from_str(&contents).map_err(|source| ConfigError::Parse {
+    let expanded = expand_env_vars(&contents);
+
+    let data: AgentData = toml::from_str(&expanded).map_err(|source| ConfigError::Parse {
         filename: filename.to_string(),
         source,
     })?;
@@ -145,12 +299,14 @@ pub fn load_manager_config(filename: &str) -> Result<ManagerData, ConfigError> {
         source,
     })?;
 
-    let data: ManagerData = toml::from_str(&contents).map_err(|source| ConfigError::Parse {
+    let expanded = expand_env_vars(&contents);
+
+    let data: ManagerData = toml::from_str(&expanded).map_err(|source| ConfigError::Parse {
         filename: filename.to_string(),
         source,
     })?;
 
-    Ok(data)
+    Ok(apply_manager_env_overrides(data))
 }
 
 #[cfg(test)]
@@ -269,6 +425,93 @@ relative_path = "test/"
                 assert_eq!(filename, "nonexistent_file.toml");
             }
             _ => panic!("Expected FileRead error"),
+        }
+    }
+
+    #[test]
+    fn test_expand_env_vars() {
+        unsafe {
+            std::env::set_var("TEST_STIGNORE_PORT", "9999");
+            std::env::set_var("TEST_STIGNORE_KEY", "secret-test-key");
+        }
+
+        let input = "port = ${TEST_STIGNORE_PORT}\nkey = \"$TEST_STIGNORE_KEY\"\nother = \"${UNSET_VAR_XYZ}\"";
+        let expanded = expand_env_vars(input);
+
+        assert_eq!(
+            expanded,
+            "port = 9999\nkey = \"secret-test-key\"\nother = \"${UNSET_VAR_XYZ}\""
+        );
+
+        unsafe {
+            std::env::remove_var("TEST_STIGNORE_PORT");
+            std::env::remove_var("TEST_STIGNORE_KEY");
+        }
+    }
+
+    #[test]
+    fn test_apply_manager_env_overrides() {
+        let base = ManagerData {
+            manager: ManagerConfig {
+                port: 8000,
+                minimum_copies: 2,
+                agent_timeout_seconds: 5,
+                auth: AuthConfig::default(),
+            },
+            agents: vec![],
+        };
+
+        unsafe {
+            std::env::set_var("STIGNORE_PORT", "8080");
+            std::env::set_var("STIGNORE_MINIMUM_COPIES", "3");
+            std::env::set_var("STIGNORE_AGENT_TIMEOUT_SECONDS", "10");
+            std::env::set_var("STIGNORE_AUTH_ENABLED", "true");
+            std::env::set_var("STIGNORE_AUTH_USER_HEADER", "X-Custom-User");
+            std::env::set_var("STIGNORE_AUTH_ROLE_HEADER", "X-Custom-Roles");
+            std::env::set_var("STIGNORE_AUTH_ADMIN_ROLE", "SuperAdmin");
+            std::env::set_var("STIGNORE_AUTH_READER_ROLE", "Viewer");
+        }
+
+        let overridden = apply_manager_env_overrides(base);
+
+        assert_eq!(overridden.manager.port, 8080);
+        assert_eq!(overridden.manager.minimum_copies, 3);
+        assert_eq!(overridden.manager.agent_timeout_seconds, 10);
+        assert!(overridden.manager.auth.enabled);
+        assert_eq!(overridden.manager.auth.user_header, "X-Custom-User");
+        assert_eq!(overridden.manager.auth.role_header, "X-Custom-Roles");
+        assert_eq!(overridden.manager.auth.admin_role, "SuperAdmin");
+        assert_eq!(overridden.manager.auth.reader_role, "Viewer");
+
+        unsafe {
+            std::env::remove_var("STIGNORE_PORT");
+            std::env::remove_var("STIGNORE_MINIMUM_COPIES");
+            std::env::remove_var("STIGNORE_AGENT_TIMEOUT_SECONDS");
+            std::env::remove_var("STIGNORE_AUTH_ENABLED");
+            std::env::remove_var("STIGNORE_AUTH_USER_HEADER");
+            std::env::remove_var("STIGNORE_AUTH_ROLE_HEADER");
+            std::env::remove_var("STIGNORE_AUTH_ADMIN_ROLE");
+            std::env::remove_var("STIGNORE_AUTH_READER_ROLE");
+        }
+    }
+
+    #[test]
+    fn test_resolve_config_path_explicit() {
+        let res = resolve_config_path(Some("/path/to/explicit.toml"), &["default.toml"]);
+        assert_eq!(res, Some("/path/to/explicit.toml".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_config_path_env_var() {
+        unsafe {
+            std::env::set_var("STIGNORE_CONFIG", "/env/config.toml");
+        }
+
+        let res = resolve_config_path(None, &["nonexistent.toml"]);
+        assert_eq!(res, Some("/env/config.toml".to_string()));
+
+        unsafe {
+            std::env::remove_var("STIGNORE_CONFIG");
         }
     }
 }
