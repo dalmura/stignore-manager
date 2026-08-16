@@ -124,3 +124,45 @@ api_key = "550e8400-e29b-41d4-a716-446655440000"
 - Managing `.stignore` files across multiple project locations
 - Centralized view of filesystem structures from different sources
 - Bulk ignore file operations across distributed repositories
+
+## Release Process
+
+Container builds and GitHub releases are automated via GitHub Actions on Git tag pushes.
+
+### 1. Update Package Versions
+Update the version number in the respective crate `Cargo.toml` files:
+- `manager/Cargo.toml` (`version = "x.y.z"`)
+- `agent/Cargo.toml` (`version = "x.y.z"`)
+- `lib/Cargo.toml` (`version = "x.y.z"`)
+
+### 2. Verify Linting & Tests
+Ensure all checks pass locally:
+```bash
+cargo fmt --check
+cargo clippy --all-targets --all-features
+cargo test
+```
+
+### 3. Commit & Push to Main
+```bash
+git add -A
+git commit -m "chore: bump version to v1.3.2"
+git push origin main
+```
+
+### 4. Create and Push a Git Tag
+Push a git tag matching the version (prefixed with `v`):
+```bash
+git tag v1.3.2
+git push origin v1.3.2
+```
+
+### 5. Automated CI/CD Pipeline
+Once the tag is pushed, GitHub Actions will automatically:
+1. Extract crate versions from `manager/Cargo.toml` and `agent/Cargo.toml`.
+2. Build multi-arch container images (`linux/amd64`, `linux/arm64`).
+3. Publish containers to GitHub Container Registry (GHCR):
+   - `ghcr.io/dalmura/stignore-manager:v1.3.2` and `latest`
+   - `ghcr.io/dalmura/stignore-agent:v1.1.0` and `latest`
+4. Build release binaries and create a GitHub Release with automated release notes.
+
