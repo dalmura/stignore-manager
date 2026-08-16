@@ -129,14 +129,15 @@ api_key = "550e8400-e29b-41d4-a716-446655440000"
 
 Container builds and GitHub releases are automated via GitHub Actions on Git tag pushes.
 
-### 1. Update Package Versions
-Update the version number in the respective crate `Cargo.toml` files:
-- `manager/Cargo.toml` (`version = "x.y.z"`)
-- `agent/Cargo.toml` (`version = "x.y.z"`)
-- `lib/Cargo.toml` (`version = "x.y.z"`)
+### 1. Update Workspace Version
+Update the single version in root `Cargo.toml`:
+```toml
+[workspace.package]
+version = "1.4.0"
+```
 
 ### 2. Verify Linting & Tests (Updates `Cargo.lock`)
-Running cargo checks/tests will automatically sync `Cargo.lock` to the new version numbers:
+Running cargo checks/tests will automatically sync `Cargo.lock` to the new version number:
 ```bash
 cargo fmt --check
 cargo clippy --all-targets --all-features
@@ -154,16 +155,16 @@ git push origin main
 ### 4. Create and Push a Git Tag
 Push a git tag matching the version (prefixed with `v`):
 ```bash
-git tag v1.3.2
-git push origin v1.3.2
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
 ### 5. Automated CI/CD Pipeline
 Once the tag is pushed, GitHub Actions will automatically:
-1. Extract crate versions from `manager/Cargo.toml` and `agent/Cargo.toml`.
+1. Extract the workspace version from root `Cargo.toml`.
 2. Build multi-arch container images (`linux/amd64`, `linux/arm64`).
 3. Publish containers to GitHub Container Registry (GHCR):
-   - `ghcr.io/dalmura/stignore-manager:v1.3.2` and `latest`
-   - `ghcr.io/dalmura/stignore-agent:v1.1.0` and `latest`
+   - `ghcr.io/dalmura/stignore-manager:v1.4.0` and `latest`
+   - `ghcr.io/dalmura/stignore-agent:v1.4.0` and `latest`
 4. Build release binaries and create a GitHub Release with automated release notes.
 

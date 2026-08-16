@@ -18,13 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Extract crate versions
+      - name: Extract workspace version
         id: versions
         run: |
-          MANAGER_VER=$(python3 -c "import tomllib; print(tomllib.load(open('manager/Cargo.toml', 'rb'))['package']['version'])")
-          AGENT_VER=$(python3 -c "import tomllib; print(tomllib.load(open('agent/Cargo.toml', 'rb'))['package']['version'])")
-          echo "manager=${MANAGER_VER}" >> "$GITHUB_OUTPUT"
-          echo "agent=${AGENT_VER}" >> "$GITHUB_OUTPUT"
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml', 'rb'))['workspace']['package']['version'])")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -47,7 +45,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/dalmura/stignore-manager:latest
-            ghcr.io/dalmura/stignore-manager:v${{ steps.versions.outputs.manager }}
+            ghcr.io/dalmura/stignore-manager:v${{ steps.versions.outputs.version }}
           target: manager
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -60,7 +58,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/dalmura/stignore-agent:latest
-            ghcr.io/dalmura/stignore-agent:v${{ steps.versions.outputs.agent }}
+            ghcr.io/dalmura/stignore-agent:v${{ steps.versions.outputs.version }}
           target: agent
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -71,11 +69,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Extract manager version
+      - name: Extract workspace version
         id: versions
         run: |
-          MANAGER_VER=$(python3 -c "import tomllib; print(tomllib.load(open('manager/Cargo.toml', 'rb'))['package']['version'])")
-          echo "manager=${MANAGER_VER}" >> "$GITHUB_OUTPUT"
+          VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml', 'rb'))['workspace']['package']['version'])")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
 
@@ -86,8 +84,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "v${{ steps.versions.outputs.manager }}" \
-            --title "Release v${{ steps.versions.outputs.manager }}" \
+          gh release create "v${{ steps.versions.outputs.version }}" \
+            --title "Release v${{ steps.versions.outputs.version }}" \
             --generate-notes \
             ./target/release/stignore-manager \
             ./target/release/stignore-agent

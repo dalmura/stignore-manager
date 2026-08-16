@@ -134,7 +134,7 @@ api_key = "550e8400-e29b-41d4-a716-446655440000"
 
 ## Release Workflow
 
-1. Bump crate versions in `manager/Cargo.toml`, `agent/Cargo.toml`, `lib/Cargo.toml`.
+1. Bump workspace version in root `Cargo.toml` (`[workspace.package] version = "X.Y.Z"`).
 2. Validate locally (syncs `Cargo.lock`): `cargo fmt --check && cargo clippy --all-targets --all-features && cargo test`.
 3. Commit and push `Cargo.toml` and `Cargo.lock` to main: `git commit -am "chore: bump version to vX.Y.Z" && git push origin main`.
 4. Tag and push release: `git tag vX.Y.Z && git push origin vX.Y.Z`.

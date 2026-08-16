@@ -135,7 +135,7 @@ pub async fn post_item_info(
         None => (
             StatusCode::NOT_FOUND,
             Json(NotFoundResponse {
-                message: format!("Item Path '{:?}' not found", &item_path),
+                message: format!("Item Path '{:?}' not found", item_path),
             }),
         )
             .into_response(),

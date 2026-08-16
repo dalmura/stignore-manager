@@ -59,7 +59,6 @@ async fn test_template_rendering_with_context() {
     assert!(text.contains("© 2024 Test"));
     // The actual message might be different, so let's just check for basic structure
     assert!(text.contains("<html") || text.contains("<!DOCTYPE"));
-    println!("Response body: {}", &text[..std::cmp::min(text.len(), 500)]); // Debug print
 }
 
 #[tokio::test]

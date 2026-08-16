@@ -1,8 +1,8 @@
 [package]
 name = "stignore-agent"
-version = "1.2.0"
-edition = "2024"
-authors = ["Michael Robbins"]
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
 
 [dependencies]
 stignore-lib = { path = "../lib" }
