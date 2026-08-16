@@ -135,8 +135,8 @@ Update the version number in the respective crate `Cargo.toml` files:
 - `agent/Cargo.toml` (`version = "x.y.z"`)
 - `lib/Cargo.toml` (`version = "x.y.z"`)
 
-### 2. Verify Linting & Tests
-Ensure all checks pass locally:
+### 2. Verify Linting & Tests (Updates `Cargo.lock`)
+Running cargo checks/tests will automatically sync `Cargo.lock` to the new version numbers:
 ```bash
 cargo fmt --check
 cargo clippy --all-targets --all-features
@@ -144,9 +144,10 @@ cargo test
 ```
 
 ### 3. Commit & Push to Main
+Ensure `Cargo.toml` and `Cargo.lock` are included in the commit:
 ```bash
 git add -A
-git commit -m "chore: bump version to v1.3.2"
+git commit -m "chore: bump version to v1.4.0"
 git push origin main
 ```
 
