@@ -61,10 +61,10 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {
+        () = ctrl_c => {
             tracing::info!("Received Ctrl+C, shutting down gracefully...");
         },
-        _ = terminate => {
+        () = terminate => {
             tracing::info!("Received terminate signal, shutting down gracefully...");
         },
     }
@@ -86,7 +86,7 @@ async fn main() {
     let data = match load_agent_config(config_filename) {
         Ok(data) => data,
         Err(err) => {
-            eprintln!("Failed to load configuration: {}", err);
+            eprintln!("Failed to load configuration: {err}");
             std::process::exit(1);
         }
     };

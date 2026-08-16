@@ -19,7 +19,7 @@ async fn main() {
 
     /* load config */
     let args: Vec<String> = env::args().collect();
-    let explicit_config = args.get(1).map(|s| s.as_str());
+    let explicit_config = args.get(1).map(String::as_str);
 
     let data = config::load_config(explicit_config);
 
@@ -73,10 +73,10 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {
+        () = ctrl_c => {
             tracing::info!("received Ctrl+C, shutting down gracefully...");
         },
-        _ = terminate => {
+        () = terminate => {
             tracing::info!("received SIGTERM, shutting down gracefully...");
         },
     }

@@ -129,20 +129,22 @@ pub fn expand_env_vars(text: &str) -> String {
 /// Resolves the configuration file path from explicit arguments, environment variables,
 /// or a list of default search paths.
 pub fn resolve_config_path(explicit: Option<&str>, default_locations: &[&str]) -> Option<String> {
-    if let Some(path) = explicit
-        && !path.is_empty()
-    {
+    if let Some(path) = explicit.filter(|p| !p.is_empty()) {
         return Some(path.to_string());
     }
 
-    if let Ok(path) = std::env::var("STIGNORE_CONFIG")
-        && !path.is_empty()
+    if let Some(path) = std::env::var("STIGNORE_CONFIG")
+        .ok()
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
     {
         return Some(path);
     }
 
-    if let Ok(path) = std::env::var("CONFIG_PATH")
-        && !path.is_empty()
+    if let Some(path) = std::env::var("CONFIG_PATH")
+        .ok()
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
     {
         return Some(path);
     }
@@ -158,22 +160,22 @@ pub fn resolve_config_path(explicit: Option<&str>, default_locations: &[&str]) -
 
 /// Applies environment variable overrides to a ManagerData configuration.
 pub fn apply_manager_env_overrides(mut data: ManagerData) -> ManagerData {
-    if let Ok(port_str) = std::env::var("STIGNORE_PORT")
+    if let Ok(port) = std::env::var("STIGNORE_PORT")
         .or_else(|_| std::env::var("PORT"))
         .or_else(|_| std::env::var("STIGNORE_MANAGER_PORT"))
-        && let Ok(port) = port_str.parse::<u16>()
+        .and_then(|s| s.parse::<u16>().map_err(|_| std::env::VarError::NotPresent))
     {
         data.manager.port = port;
     }
 
-    if let Ok(min_copies_str) = std::env::var("STIGNORE_MINIMUM_COPIES")
-        && let Ok(min_copies) = min_copies_str.parse::<u8>()
+    if let Ok(min_copies) = std::env::var("STIGNORE_MINIMUM_COPIES")
+        .and_then(|s| s.parse::<u8>().map_err(|_| std::env::VarError::NotPresent))
     {
         data.manager.minimum_copies = min_copies;
     }
 
-    if let Ok(timeout_str) = std::env::var("STIGNORE_AGENT_TIMEOUT_SECONDS")
-        && let Ok(timeout) = timeout_str.parse::<u64>()
+    if let Ok(timeout) = std::env::var("STIGNORE_AGENT_TIMEOUT_SECONDS")
+        .and_then(|s| s.parse::<u64>().map_err(|_| std::env::VarError::NotPresent))
     {
         data.manager.agent_timeout_seconds = timeout;
     }
