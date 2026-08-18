@@ -1167,13 +1167,12 @@ fn percent_decode_str(input: &str) -> String {
         match b {
             b'+' => bytes.push(b' '),
             b'%' => {
-                if let (Some(c1), Some(c2)) = (chars.next(), chars.next()) {
-                    if let Ok(hex) = std::str::from_utf8(&[c1, c2]) {
-                        if let Ok(byte) = u8::from_str_radix(hex, 16) {
-                            bytes.push(byte);
-                            continue;
-                        }
-                    }
+                if let (Some(c1), Some(c2)) = (chars.next(), chars.next())
+                    && let Ok(hex) = std::str::from_utf8(&[c1, c2])
+                    && let Ok(byte) = u8::from_str_radix(hex, 16)
+                {
+                    bytes.push(byte);
+                    continue;
                 }
             }
 
