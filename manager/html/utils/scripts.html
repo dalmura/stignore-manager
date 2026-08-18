@@ -527,13 +527,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Clear tracking when requests are aborted
-    document.body.addEventListener('htmx:abort', function(event) {
-        if (currentInfoPanelRequest === event.detail.elt) {
-            currentInfoPanelRequest = null;
+    // Add current sort order to dynamic items requests
+    document.body.addEventListener('htmx:configRequest', function(event) {
+        const path = event.detail.path;
+        if (path && path.indexOf('/components/dynamic-items.html') !== -1) {
+            try {
+                const url = new URL(event.detail.path, window.location.origin);
+                url.searchParams.delete('sort');
+                event.detail.path = url.pathname + url.search;
+            } catch (e) {
+                // Ignore parse errors
+            }
+            event.detail.parameters['sort'] = getSortOrder();
         }
     });
 });
+
+
 
 // URL State Management Functions
 function updateUrlWithSelection(selectedId) {
@@ -1033,8 +1043,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Re-apply search & filters when HTMX dynamically swaps items
+    // Re-sort and re-apply search & filters when HTMX dynamically swaps items
     document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (typeof reflowAndSortAllColumns === 'function') {
+            reflowAndSortAllColumns(getSortOrder());
+        }
         applySearchAndFilter();
     });
 });
@@ -1107,5 +1120,105 @@ function toggleTheme() {
 document.addEventListener('DOMContentLoaded', () => {
     const currentTheme = document.documentElement.getAttribute('data-bs-theme') || 'light';
     updateThemeIcons(currentTheme);
+    const initialSort = getSortOrder();
+    updateSortMenuUI(initialSort);
+    reflowAndSortAllColumns(initialSort);
 });
+
+
+// Folder Sort Order Management
+const VALID_SORT_ORDERS = ['name_asc', 'name_desc', 'size_desc', 'size_asc'];
+
+function getSortOrder() {
+    const saved = localStorage.getItem('folderSortOrder');
+    return VALID_SORT_ORDERS.includes(saved) ? saved : 'name_asc';
+}
+
+function getSortLabel(sortOrder) {
+    const labels = {
+        'name_asc': 'Name (A → Z)',
+        'name_desc': 'Name (Z → A)',
+        'size_desc': 'Size (Biggest first)',
+        'size_asc': 'Size (Smallest first)'
+    };
+    return labels[sortOrder] || 'Name (A → Z)';
+}
+
+function updateSortMenuUI(sortOrder) {
+    const btnLabels = {
+        'name_asc': 'Sort: Name (A-Z)',
+        'name_desc': 'Sort: Name (Z-A)',
+        'size_desc': 'Sort: Size (Biggest)',
+        'size_asc': 'Sort: Size (Smallest)'
+    };
+    const labelEl = document.getElementById('sortMenuLabel');
+    if (labelEl) {
+        labelEl.textContent = btnLabels[sortOrder] || 'Sort: Name (A-Z)';
+    }
+    document.querySelectorAll('.sort-option-btn').forEach(btn => {
+        if (btn.getAttribute('data-sort') === sortOrder) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
+function setSortOrder(order) {
+    if (!VALID_SORT_ORDERS.includes(order)) return;
+    localStorage.setItem('folderSortOrder', order);
+    updateSortMenuUI(order);
+    reflowAndSortAllColumns(order);
+    applySearchAndFilter();
+    showToast(`Folder sort order set to: ${getSortLabel(order)}`, 'success');
+}
+
+function sortDomListGroup(listGroupEl, sortOrder) {
+    if (!listGroupEl) return;
+    const items = Array.from(listGroupEl.querySelectorAll(':scope > a[id^="item-sub"]'));
+    if (items.length <= 1) return;
+
+    items.sort((a, b) => {
+        const nameA = (a.getAttribute('data-name') || '').trim().toLowerCase();
+        const nameB = (b.getAttribute('data-name') || '').trim().toLowerCase();
+        const sizeA = parseInt(a.getAttribute('data-size-kb') || '0', 10);
+        const sizeB = parseInt(b.getAttribute('data-size-kb') || '0', 10);
+
+        if (sortOrder === 'size_desc') {
+            if (sizeB !== sizeA) {
+                return sizeB - sizeA;
+            }
+            return nameA.localeCompare(nameB);
+        } else if (sortOrder === 'size_asc') {
+            if (sizeA !== sizeB) {
+                return sizeA - sizeB;
+            }
+            return nameA.localeCompare(nameB);
+        } else if (sortOrder === 'name_desc') {
+            return nameB.localeCompare(nameA);
+        } else {
+            // 'name_asc'
+            return nameA.localeCompare(nameB);
+        }
+    });
+
+    items.forEach(item => listGroupEl.appendChild(item));
+}
+
+function reflowAndSortAllColumns(sortOrder) {
+    const order = sortOrder || getSortOrder();
+
+    // Re-sort Column 2 list groups
+    document.querySelectorAll('#sub1List .list-group').forEach(listGroup => {
+        sortDomListGroup(listGroup, order);
+    });
+
+    // Re-sort Column 3 list groups
+    document.querySelectorAll('#sub2List .list-group').forEach(listGroup => {
+        sortDomListGroup(listGroup, order);
+    });
+}
 </script>
+
+
+

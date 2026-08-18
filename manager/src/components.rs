@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Query, State},
+    extract::State,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -119,13 +119,6 @@ struct InfoPanelRequest {
 struct AgentModalRequest {
     agent_name: String,
     item_path: Vec<String>,
-}
-
-#[derive(Deserialize, Debug)]
-struct DynamicItemsQuery {
-    parent_id: String,
-    parent_path: String,
-    level: u8, // 2 or 3
 }
 
 #[derive(Deserialize, Debug)]
@@ -1167,29 +1160,89 @@ async fn agents_table(State(state): State<AppState>, auth_user: AuthUser) -> imp
     )
 }
 
+fn percent_decode_str(input: &str) -> String {
+    let mut bytes = Vec::with_capacity(input.len());
+    let mut chars = input.bytes();
+    while let Some(b) = chars.next() {
+        match b {
+            b'+' => bytes.push(b' '),
+            b'%' => {
+                if let (Some(c1), Some(c2)) = (chars.next(), chars.next()) {
+                    if let Ok(hex) = std::str::from_utf8(&[c1, c2]) {
+                        if let Ok(byte) = u8::from_str_radix(hex, 16) {
+                            bytes.push(byte);
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            _ => bytes.push(b),
+        }
+    }
+    String::from_utf8_lossy(&bytes).to_string()
+}
+
 async fn dynamic_items(
     State(state): State<AppState>,
     auth_user: AuthUser,
-    Query(query): Query<DynamicItemsQuery>,
+    axum::extract::RawQuery(raw_query): axum::extract::RawQuery,
 ) -> impl IntoResponse {
+    let mut parent_id: Option<String> = None;
+    let mut parent_path: Option<String> = None;
+    let mut level: Option<u8> = None;
+    let mut sort: Option<String> = None;
+
+    if let Some(query_str) = raw_query {
+        for pair in query_str.split('&') {
+            if let Some((k, v)) = pair.split_once('=') {
+                let decoded_k = percent_decode_str(k);
+                let decoded_v = percent_decode_str(v);
+                match decoded_k.as_str() {
+                    "parent_id" => parent_id = Some(decoded_v),
+                    "parent_path" => parent_path = Some(decoded_v),
+                    "level" => {
+                        if let Ok(l) = decoded_v.parse::<u8>() {
+                            level = Some(l);
+                        }
+                    }
+                    "sort" => sort = Some(decoded_v),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    let (parent_id, parent_path, level) = match (parent_id, parent_path, level) {
+        (Some(id), Some(path), Some(lvl)) if lvl == 2 || lvl == 3 => (id, path, lvl),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Missing or invalid required query parameters (parent_id, parent_path, level)",
+            )
+                .into_response();
+        }
+    };
+
     let mut context = state.context.clone();
     auth::inject_auth_context(&mut context, &auth_user);
 
     // Decode the parent_path from base64
-    let decoded_parent_path = match unsanitize_id(&query.parent_path) {
+    let decoded_parent_path = match unsanitize_id(&parent_path) {
         Ok(path) => path,
         Err(_) => {
             // If decoding fails, return empty items
             context.insert("items", &Vec::<ItemGroupWithFlags>::new());
-            context.insert("parent_id", &query.parent_id);
-            context.insert("parent_path", &query.parent_path);
-            context.insert("level", &query.level);
+            context.insert("parent_id", &parent_id);
+            context.insert("parent_path", &parent_path);
+            context.insert("level", &level);
             context.insert("minimum_copies", &state.config.manager.minimum_copies);
             return RenderHtml(
                 Key("components/dynamic-items.html".to_string()),
                 state.engine,
                 context.into_json(),
-            );
+            )
+            .into_response();
         }
     };
 
@@ -1197,7 +1250,9 @@ async fn dynamic_items(
     let response =
         agents::list_categories(&state.agent_client, state.config.agents, &disabled_agents).await;
 
-    let found_items = if query.level == 2 {
+    let sort_order = SortOrder::from_query(sort.as_deref());
+
+    let found_items = if level == 2 {
         // Level 2: Find direct children of top-level category
         response
             .items
@@ -1222,7 +1277,10 @@ async fn dynamic_items(
     };
 
     if let Some(items) = found_items {
-        let items_with_flags: Vec<ItemGroupWithFlags> = items
+        let mut sorted_items = items.clone();
+        sort_order.sort_items(&mut sorted_items);
+
+        let items_with_flags: Vec<ItemGroupWithFlags> = sorted_items
             .iter()
             .map(|item| convert_item_with_flags(item, state.config.manager.minimum_copies))
             .collect();
@@ -1232,15 +1290,17 @@ async fn dynamic_items(
         context.insert("items", &Vec::<ItemGroupWithFlags>::new());
     }
 
-    context.insert("parent_id", &query.parent_id);
-    context.insert("parent_path", &query.parent_path);
+    context.insert("sort_order", sort_order.as_str());
+
+    context.insert("parent_id", &parent_id);
+    context.insert("parent_path", &parent_path);
     context.insert("parent_path_raw", &decoded_parent_path);
-    context.insert("level", &query.level);
+    context.insert("level", &level);
     context.insert("minimum_copies", &state.config.manager.minimum_copies);
 
     // For level 3, extract and decode category_id from parent_id (format: categoryId-level2Id)
-    if query.level == 3 {
-        let parts: Vec<&str> = query.parent_id.split('-').collect();
+    if level == 3 {
+        let parts: Vec<&str> = parent_id.split('-').collect();
         if parts.len() >= 2 {
             let category_id_encoded = parts[0];
             if let Ok(category_id_raw) = unsanitize_id(category_id_encoded) {
@@ -1254,4 +1314,5 @@ async fn dynamic_items(
         state.engine,
         context.into_json(),
     )
+    .into_response()
 }

@@ -41,13 +41,16 @@
                 hx-include="#parent-item-{{ i.safe_id }} input"
                 hx-target="#info-panel"
             >
-                <div class="d-flex align-items-center">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-primary">
+                <div class="d-flex align-items-center text-truncate me-2">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="me-3 text-primary flex-shrink-0">
                         <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
                     </svg>
-                    <span class="fw-medium item-title">{{ i.name }}</span>
+                    <span class="fw-medium item-title text-truncate">{{ i.name }}</span>
                 </div>
-                <span class="badge text-bg-primary rounded-pill">{{ i.items | length }}</span>
+                <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                    <span class="badge bg-secondary-subtle text-body-secondary rounded-pill font-monospace small" title="Total size: {{ i.size_kb | humansize }}">{{ i.size_kb | humansize }}</span>
+                    <span class="badge text-bg-primary rounded-pill" title="{{ i.items | length }} items">{{ i.items | length }}</span>
+                </div>
                 <input type="hidden" name="item_path" value="">
                 <input type="hidden" name="item_path" value="{{ i.id }}">
             </a>

@@ -3,6 +3,7 @@ mod common;
 use axum_test::TestServer;
 use common::*;
 use serde_json::json;
+use stignore_lib::*;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -561,4 +562,144 @@ async fn test_toggle_agent_endpoint() {
     let body: serde_json::Value = response.json();
     assert_eq!(body["success"], true);
     assert_eq!(body["enabled"], true);
+}
+
+#[tokio::test]
+async fn test_dynamic_items_sorting_options() {
+    let mock_server = MockServer::start().await;
+
+    // Custom mock category response with multiple items of varying sizes
+    let category_response = AgentCategoryListingResponse {
+        items: vec![ItemGroup {
+            id: "Media".to_string(),
+            name: "Media".to_string(),
+            size_kb: 5000,
+            items: vec![
+                ItemGroup {
+                    id: "Media/Small".to_string(),
+                    name: "Small Folder".to_string(),
+                    size_kb: 100,
+                    items: vec![],
+                    leaf: false,
+                    copy_count: 1,
+                },
+                ItemGroup {
+                    id: "Media/Big".to_string(),
+                    name: "Big Folder".to_string(),
+                    size_kb: 4000,
+                    items: vec![],
+                    leaf: false,
+                    copy_count: 1,
+                },
+                ItemGroup {
+                    id: "Media/Medium".to_string(),
+                    name: "Medium Folder".to_string(),
+                    size_kb: 900,
+                    items: vec![],
+                    leaf: false,
+                    copy_count: 1,
+                },
+            ],
+            leaf: false,
+            copy_count: 1,
+        }],
+    };
+
+    Mock::given(method("GET"))
+        .and(path("/api/v1/categories"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(category_response))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    // Sanitize ID for "Media" -> "id_TWVkaWE"
+    let media_parent_path = "id_TWVkaWE";
+
+    // 1. Test size_desc (Biggest first)
+
+    let resp_size_desc = server
+        .get("/components/dynamic-items.html")
+        .add_query_param("parent_id", "Media")
+        .add_query_param("parent_path", media_parent_path)
+        .add_query_param("level", "2")
+        .add_query_param("sort", "size_desc")
+        .await;
+
+    resp_size_desc.assert_status_ok();
+    let text_size_desc = resp_size_desc.text();
+    let big_pos = text_size_desc.find("Big Folder").unwrap();
+    let medium_pos = text_size_desc.find("Medium Folder").unwrap();
+    let small_pos = text_size_desc.find("Small Folder").unwrap();
+    assert!(big_pos < medium_pos);
+    assert!(medium_pos < small_pos);
+
+    // 2. Test size_asc (Smallest first)
+    let resp_size_asc = server
+        .get("/components/dynamic-items.html")
+        .add_query_param("parent_id", "Media")
+        .add_query_param("parent_path", media_parent_path)
+        .add_query_param("level", "2")
+        .add_query_param("sort", "size_asc")
+        .await;
+
+    resp_size_asc.assert_status_ok();
+    let text_size_asc = resp_size_asc.text();
+    let small_pos_asc = text_size_asc.find("Small Folder").unwrap();
+    let medium_pos_asc = text_size_asc.find("Medium Folder").unwrap();
+    let big_pos_asc = text_size_asc.find("Big Folder").unwrap();
+    assert!(small_pos_asc < medium_pos_asc);
+    assert!(medium_pos_asc < big_pos_asc);
+
+    // 3. Test name_asc (A to Z)
+    let resp_name_asc = server
+        .get("/components/dynamic-items.html")
+        .add_query_param("parent_id", "Media")
+        .add_query_param("parent_path", media_parent_path)
+        .add_query_param("level", "2")
+        .add_query_param("sort", "name_asc")
+        .await;
+
+    resp_name_asc.assert_status_ok();
+    let text_name_asc = resp_name_asc.text();
+    let big_pos_name = text_name_asc.find("Big Folder").unwrap();
+    let medium_pos_name = text_name_asc.find("Medium Folder").unwrap();
+    let small_pos_name = text_name_asc.find("Small Folder").unwrap();
+    assert!(big_pos_name < medium_pos_name);
+    assert!(medium_pos_name < small_pos_name);
+
+    // 4. Test name_desc (Z to A)
+    let resp_name_desc = server
+        .get("/components/dynamic-items.html")
+        .add_query_param("parent_id", "Media")
+        .add_query_param("parent_path", media_parent_path)
+        .add_query_param("level", "2")
+        .add_query_param("sort", "name_desc")
+        .await;
+
+    resp_name_desc.assert_status_ok();
+    let text_name_desc = resp_name_desc.text();
+    let small_pos_desc = text_name_desc.find("Small Folder").unwrap();
+    let medium_pos_desc = text_name_desc.find("Medium Folder").unwrap();
+    let big_pos_desc = text_name_desc.find("Big Folder").unwrap();
+    assert!(small_pos_desc < medium_pos_desc);
+    assert!(medium_pos_desc < big_pos_desc);
+
+    // 5. Test resilience to duplicate sort query params
+    let resp_duplicate_sort = server
+        .get(&format!(
+            "/components/dynamic-items.html?parent_id=Media&parent_path={}&level=2&sort=name_asc&sort=size_desc",
+            media_parent_path
+        ))
+        .await;
+
+    resp_duplicate_sort.assert_status_ok();
+    let text_dup = resp_duplicate_sort.text();
+    // With sort=size_desc as the last param, Big should appear before Small
+    let big_pos_dup = text_dup.find("Big Folder").unwrap();
+    let small_pos_dup = text_dup.find("Small Folder").unwrap();
+    assert!(big_pos_dup < small_pos_dup);
 }

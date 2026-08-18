@@ -150,3 +150,20 @@ async fn test_humansize_filter_integration() {
         }
     }
 }
+
+#[tokio::test]
+async fn test_navbar_sort_menu_rendering() {
+    let config = create_test_config();
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let response = server.get("/").await;
+    response.assert_status_ok();
+    response.assert_text_contains("sortDropdownContainer");
+    response.assert_text_contains("sortMenuDropdown");
+    response.assert_text_contains("sortMenuLabel");
+    response.assert_text_contains("data-sort=\"name_asc\"");
+    response.assert_text_contains("data-sort=\"name_desc\"");
+    response.assert_text_contains("data-sort=\"size_desc\"");
+    response.assert_text_contains("data-sort=\"size_asc\"");
+}

@@ -197,6 +197,47 @@ p {
   transform: scale(0.95);
 }
 
+/* Sort Dropdown Button & Menu */
+.sort-dropdown-btn {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  color: white !important;
+  padding: 0.4rem 0.75rem !important;
+  border-radius: 0.5rem !important;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.sort-dropdown-btn:hover,
+.sort-dropdown-btn:focus,
+.sort-dropdown-btn[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.22) !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  color: white !important;
+  transform: none;
+}
+
+.dropdown-menu .sort-option-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  border-radius: 0.25rem;
+  margin: 0.1rem 0.25rem;
+  width: calc(100% - 0.5rem);
+}
+
+.dropdown-menu .sort-option-btn.active {
+  background-color: var(--primary-light) !important;
+  color: var(--primary-color) !important;
+  font-weight: 600;
+}
+
+.dropdown-menu .sort-option-btn:hover:not(.active) {
+  background-color: var(--bg-item-hover);
+}
+
 /* Main content layout */
 body > .container-fluid {
   flex: 1;

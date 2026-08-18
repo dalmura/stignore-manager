@@ -37,6 +37,63 @@
                 </li>
             </ul>
             <div class="d-flex align-items-center gap-2">
+                <!-- Sort Dropdown Menu -->
+                <div class="dropdown" id="sortDropdownContainer">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle d-flex align-items-center gap-1 sort-dropdown-btn text-white" type="button" id="sortMenuDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Configure folder sort order">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                            <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
+                        </svg>
+                        <span id="sortMenuLabel" class="d-none d-sm-inline">Sort: Name (A-Z)</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="sortMenuDropdown">
+                        <li><h6 class="dropdown-header">Folder Sort Order</h6></li>
+                        <li>
+                            <button class="dropdown-item sort-option-btn active d-flex align-items-center justify-content-between" type="button" data-sort="name_asc" onclick="setSortOrder('name_asc')">
+                                <span class="d-flex align-items-center">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-2 text-muted">
+                                        <path d="M9.25 5v14l-4-4 1.41-1.41L8 14.93V5h1.25zm5.75 0h2v2h-2V5zm0 4h4v2h-4V9zm0 4h6v2h-6v-2zm0 4h8v2h-8v-2z"/>
+                                    </svg>
+                                    Name (A → Z)
+                                </span>
+                                <span class="badge bg-secondary-subtle text-secondary ms-2">A-Z</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item sort-option-btn d-flex align-items-center justify-content-between" type="button" data-sort="name_desc" onclick="setSortOrder('name_desc')">
+                                <span class="d-flex align-items-center">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-2 text-muted">
+                                        <path d="M9.25 19V5l-4 4 1.41 1.41L8 9.07V19h1.25zm5.75-14h8v2h-8V5zm0 4h6v2h-6V9zm0 4h4v2h-4v-2zm0 4h2v2h-2v-2z"/>
+                                    </svg>
+                                    Name (Z → A)
+                                </span>
+                                <span class="badge bg-secondary-subtle text-secondary ms-2">Z-A</span>
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <button class="dropdown-item sort-option-btn d-flex align-items-center justify-content-between" type="button" data-sort="size_desc" onclick="setSortOrder('size_desc')">
+                                <span class="d-flex align-items-center">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-2 text-warning">
+                                        <path d="M3 18h18v-2H3v2zm0-5h12v-2H3v2zm0-7v2h6V6H3z"/>
+                                    </svg>
+                                    Size (Biggest first)
+                                </span>
+                                <span class="badge bg-primary-subtle text-primary ms-2">Size ↓</span>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item sort-option-btn d-flex align-items-center justify-content-between" type="button" data-sort="size_asc" onclick="setSortOrder('size_asc')">
+                                <span class="d-flex align-items-center">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-2 text-info">
+                                        <path d="M3 6h6v2H3V6zm0 5h12v2H3v-2zm0 5h18v2H3v-2z"/>
+                                    </svg>
+                                    Size (Smallest first)
+                                </span>
+                                <span class="badge bg-secondary-subtle text-secondary ms-2">Size ↑</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
                 <form class="d-flex search-input-group mb-0" role="search" onsubmit="event.preventDefault();">
                     <input id="globalSearchInput" class="form-control" type="search" placeholder="Fuzzy search items..." aria-label="Search">
                     <kbd class="search-shortcut-kbd">/</kbd>

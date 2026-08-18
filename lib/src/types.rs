@@ -198,6 +198,82 @@ pub struct DeleteResponse {
 }
 
 // Manager-side agent API types (for communicating with agents)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SortOrder {
+    #[default]
+    NameAsc,
+    NameDesc,
+    SizeDesc,
+    SizeAsc,
+}
+
+impl SortOrder {
+    pub fn from_query(s: Option<&str>) -> Self {
+        match s.map(|v| v.trim().to_lowercase()).as_deref() {
+            Some("name_desc") | Some("name-desc") => SortOrder::NameDesc,
+            Some("size_desc") | Some("size-desc") | Some("size") | Some("biggest") => {
+                SortOrder::SizeDesc
+            }
+            Some("size_asc") | Some("size-asc") | Some("smallest") => SortOrder::SizeAsc,
+            Some("name_asc") | Some("name-asc") | Some("name") => SortOrder::NameAsc,
+            _ => SortOrder::NameAsc,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SortOrder::NameAsc => "name_asc",
+            SortOrder::NameDesc => "name_desc",
+            SortOrder::SizeDesc => "size_desc",
+            SortOrder::SizeAsc => "size_asc",
+        }
+    }
+
+    pub fn sort_items(&self, items: &mut [ItemGroup]) {
+        match self {
+            SortOrder::NameAsc => {
+                items.sort_by(|a, b| {
+                    if a.leaf == b.leaf {
+                        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+                    } else {
+                        a.leaf.cmp(&b.leaf)
+                    }
+                });
+            }
+            SortOrder::NameDesc => {
+                items.sort_by(|a, b| {
+                    if a.leaf == b.leaf {
+                        b.name.to_lowercase().cmp(&a.name.to_lowercase())
+                    } else {
+                        a.leaf.cmp(&b.leaf)
+                    }
+                });
+            }
+            SortOrder::SizeDesc => {
+                items.sort_by(|a, b| {
+                    b.size_kb
+                        .cmp(&a.size_kb)
+                        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+                });
+            }
+            SortOrder::SizeAsc => {
+                items.sort_by(|a, b| {
+                    a.size_kb
+                        .cmp(&b.size_kb)
+                        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+                });
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for SortOrder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AgentCategoryListingResponse {
     pub items: Vec<ItemGroup>,
@@ -395,5 +471,109 @@ mod tests {
         let json = serde_json::to_string(&item_request).unwrap();
         let deserialized: AgentItemInfoRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.item_path.len(), 3);
+    }
+
+    #[test]
+    fn test_sort_order_from_query() {
+        assert_eq!(SortOrder::from_query(None), SortOrder::NameAsc);
+        assert_eq!(SortOrder::from_query(Some("")), SortOrder::NameAsc);
+        assert_eq!(SortOrder::from_query(Some("name_asc")), SortOrder::NameAsc);
+        assert_eq!(SortOrder::from_query(Some("name")), SortOrder::NameAsc);
+        assert_eq!(
+            SortOrder::from_query(Some("name_desc")),
+            SortOrder::NameDesc
+        );
+        assert_eq!(
+            SortOrder::from_query(Some("size_desc")),
+            SortOrder::SizeDesc
+        );
+        assert_eq!(SortOrder::from_query(Some("size")), SortOrder::SizeDesc);
+        assert_eq!(SortOrder::from_query(Some("biggest")), SortOrder::SizeDesc);
+        assert_eq!(SortOrder::from_query(Some("size_asc")), SortOrder::SizeAsc);
+        assert_eq!(SortOrder::from_query(Some("smallest")), SortOrder::SizeAsc);
+    }
+
+    #[test]
+    fn test_sort_order_sorting() {
+        let item_small = ItemGroup {
+            id: "small".to_string(),
+            name: "B Small".to_string(),
+            size_kb: 100,
+            items: vec![],
+            leaf: false,
+            copy_count: 1,
+        };
+        let item_big = ItemGroup {
+            id: "big".to_string(),
+            name: "A Big".to_string(),
+            size_kb: 5000,
+            items: vec![],
+            leaf: false,
+            copy_count: 1,
+        };
+        let item_medium = ItemGroup {
+            id: "medium".to_string(),
+            name: "C Medium".to_string(),
+            size_kb: 1000,
+            items: vec![],
+            leaf: false,
+            copy_count: 1,
+        };
+
+        let original = vec![item_small.clone(), item_big.clone(), item_medium.clone()];
+
+        // Size Desc (Biggest first)
+        let mut by_size_desc = original.clone();
+        SortOrder::SizeDesc.sort_items(&mut by_size_desc);
+        assert_eq!(by_size_desc[0].name, "A Big");
+        assert_eq!(by_size_desc[1].name, "C Medium");
+        assert_eq!(by_size_desc[2].name, "B Small");
+
+        // Size Asc (Smallest first)
+        let mut by_size_asc = original.clone();
+        SortOrder::SizeAsc.sort_items(&mut by_size_asc);
+        assert_eq!(by_size_asc[0].name, "B Small");
+        assert_eq!(by_size_asc[1].name, "C Medium");
+        assert_eq!(by_size_asc[2].name, "A Big");
+
+        // Name Asc (A -> Z)
+        let mut by_name_asc = original.clone();
+        SortOrder::NameAsc.sort_items(&mut by_name_asc);
+        assert_eq!(by_name_asc[0].name, "A Big");
+        assert_eq!(by_name_asc[1].name, "B Small");
+        assert_eq!(by_name_asc[2].name, "C Medium");
+
+        // Name Desc (Z -> A)
+        let mut by_name_desc = original.clone();
+        SortOrder::NameDesc.sort_items(&mut by_name_desc);
+        assert_eq!(by_name_desc[0].name, "C Medium");
+        assert_eq!(by_name_desc[1].name, "B Small");
+        assert_eq!(by_name_desc[2].name, "A Big");
+    }
+
+    #[test]
+    fn test_sort_order_tie_breaking() {
+        let item1 = ItemGroup {
+            id: "z".to_string(),
+            name: "Zeta".to_string(),
+            size_kb: 500,
+            items: vec![],
+            leaf: false,
+            copy_count: 1,
+        };
+        let item2 = ItemGroup {
+            id: "a".to_string(),
+            name: "Alpha".to_string(),
+            size_kb: 500,
+            items: vec![],
+            leaf: false,
+            copy_count: 1,
+        };
+
+        let mut items = vec![item1, item2];
+        SortOrder::SizeDesc.sort_items(&mut items);
+        // Ties broken by name A-Z
+        assert_eq!(items[0].name, "Alpha");
+        assert_eq!(items[1].name, "Zeta");
     }
 }
