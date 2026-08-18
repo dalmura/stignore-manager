@@ -12,7 +12,7 @@ COPY manager/ ./manager/
 RUN cargo build --release
 
 
-FROM gcr.io/distroless/cc-debian12 AS agent
+FROM gcr.io/distroless/cc-debian13 AS agent
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ ENTRYPOINT ["/stignore-agent"]
 CMD ["/app/config.toml"]
 
 
-FROM gcr.io/distroless/cc-debian12 AS manager
+FROM gcr.io/distroless/cc-debian13 AS manager
 
 WORKDIR /app
 
