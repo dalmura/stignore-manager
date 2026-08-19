@@ -56,7 +56,8 @@ async fn test_template_rendering_with_context() {
 
     let text = response.text();
     assert!(text.contains("stignore-manager-test"));
-    assert!(text.contains("© 2024 Test"));
+    assert!(text.contains("v0.1.0-test"));
+    assert!(text.contains("https://github.com/dalmura/stignore-manager"));
     // The actual message might be different, so let's just check for basic structure
     assert!(text.contains("<html") || text.contains("<!DOCTYPE"));
 }
@@ -119,7 +120,8 @@ async fn test_app_state_creation() {
     // Test template engine is working
     let context = app_state.context.clone();
     assert!(context.get("title").is_some());
-    assert!(context.get("copyright").is_some());
+    assert!(context.get("version").is_some());
+    assert!(context.get("repo_url").is_some());
 }
 
 #[tokio::test]

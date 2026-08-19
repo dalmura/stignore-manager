@@ -726,6 +726,14 @@ footer {
   border-top: 1px solid var(--border-color);
 }
 
+footer a {
+  transition: color 0.15s ease-in-out;
+}
+
+footer a:hover {
+  color: var(--primary-color) !important;
+}
+
 /* Search & Filtering */
 .search-highlight {
   background-color: rgba(245, 158, 11, 0.3);

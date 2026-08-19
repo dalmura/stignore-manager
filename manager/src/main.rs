@@ -29,7 +29,8 @@ async fn main() {
     tera.load_from_glob("html/**/*.html").unwrap();
     let mut context = Context::new();
     context.insert("title", "stignore-manager");
-    context.insert("copyright", "© 2024 Dalmura");
+    context.insert("version", env!("CARGO_PKG_VERSION"));
+    context.insert("repo_url", "https://github.com/dalmura/stignore-manager");
 
     let app_state = AppState {
         engine: TeraEngine(tera),

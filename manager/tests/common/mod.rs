@@ -62,7 +62,8 @@ pub fn create_test_app_state(config: ManagerData) -> AppState {
     tera.load_from_glob("html/**/*.html").unwrap();
     let mut context = Context::new();
     context.insert("title", "stignore-manager-test");
-    context.insert("copyright", "© 2024 Test");
+    context.insert("version", "0.1.0-test");
+    context.insert("repo_url", "https://github.com/dalmura/stignore-manager");
 
     AppState {
         engine: TeraEngine(tera),
