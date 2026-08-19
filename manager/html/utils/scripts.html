@@ -44,6 +44,7 @@ function refreshItemData() {
                 if (typeof restoreSelectionFromUrl === 'function') {
                     setTimeout(restoreSelectionFromUrl, 200);
                 }
+                refreshAgentStatusPill();
             } else {
                 window.location.reload();
             }
@@ -52,6 +53,22 @@ function refreshItemData() {
             console.error('Soft refresh failed, falling back to page reload:', err);
             window.location.reload();
         });
+}
+
+function refreshAgentStatusPill() {
+    const pillContainer = document.getElementById('agentStatusPillContainer');
+    if (pillContainer) {
+        if (typeof htmx !== 'undefined') {
+            htmx.trigger(pillContainer, 'load');
+        } else {
+            fetch('/components/agent-status-pill.html')
+                .then(res => res.text())
+                .then(html => {
+                    pillContainer.innerHTML = html;
+                })
+                .catch(err => console.error('Failed to refresh status pill:', err));
+        }
+    }
 }
 
 function showToast(message, type = 'success', options = {}) {
@@ -1071,6 +1088,7 @@ function toggleAgent(agentName, enabled) {
     .then(data => {
         if (data.success) {
             showToast(data.message, 'success');
+            refreshAgentStatusPill();
             if (tableContainer) {
                 fetch('/components/agents-table.html')
                     .then(res => res.text())

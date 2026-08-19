@@ -169,3 +169,17 @@ async fn test_navbar_sort_menu_rendering() {
     response.assert_text_contains("data-sort=\"size_desc\"");
     response.assert_text_contains("data-sort=\"size_asc\"");
 }
+
+#[tokio::test]
+async fn test_footer_agent_status_pill_rendering() {
+    let config = create_test_config();
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let response = server.get("/").await;
+    response.assert_status_ok();
+    response.assert_text_contains("agentStatusPillContainer");
+    response.assert_text_contains("hx-get=\"/components/agent-status-pill.html\"");
+    response.assert_text_contains("hx-trigger=\"load, every 30s\"");
+    response.assert_text_contains("GitHub");
+}

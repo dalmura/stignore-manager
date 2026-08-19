@@ -197,6 +197,125 @@ p {
   transform: scale(0.95);
 }
 
+/* Agent Status Pill (Footer) */
+.agent-status-pill-container {
+  display: inline-flex;
+  align-items: center;
+}
+
+.agent-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.775rem;
+  font-weight: 500;
+  color: var(--text-muted) !important;
+  background: var(--bg-item-hover);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.agent-status-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--card-shadow);
+  color: var(--text-main) !important;
+}
+
+.agent-status-pill:active {
+  transform: translateY(0);
+}
+
+/* Status variants */
+.agent-status-pill.status-healthy {
+  background: rgba(16, 185, 129, 0.12) !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+  color: var(--success-color) !important;
+}
+
+.agent-status-pill.status-healthy:hover {
+  background: rgba(16, 185, 129, 0.22) !important;
+  border-color: rgba(16, 185, 129, 0.55) !important;
+}
+
+.agent-status-pill.status-warning {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+  color: var(--warning-color) !important;
+}
+
+.agent-status-pill.status-warning:hover {
+  background: rgba(245, 158, 11, 0.22) !important;
+  border-color: rgba(245, 158, 11, 0.55) !important;
+}
+
+.agent-status-pill.status-danger {
+  background: rgba(239, 68, 68, 0.12) !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+  color: var(--danger-color) !important;
+}
+
+.agent-status-pill.status-danger:hover {
+  background: rgba(239, 68, 68, 0.22) !important;
+  border-color: rgba(239, 68, 68, 0.55) !important;
+}
+
+.agent-status-pill.status-empty,
+.agent-status-pill.status-loading {
+  background: var(--bg-item-hover) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-muted) !important;
+}
+
+/* Status Indicator Dots */
+.status-indicator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.status-healthy .status-indicator-dot {
+  background-color: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
+}
+
+.status-warning .status-indicator-dot {
+  background-color: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
+}
+
+.status-danger .status-indicator-dot {
+  background-color: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);
+}
+
+.status-empty .status-indicator-dot,
+.status-dot-loading {
+  background-color: #94a3b8;
+  box-shadow: 0 0 4px rgba(148, 163, 184, 0.4);
+}
+
+.status-dot-loading {
+  animation: pulse-dot 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
 /* Sort Dropdown Button & Menu */
 .sort-dropdown-btn {
   background: rgba(255, 255, 255, 0.12) !important;

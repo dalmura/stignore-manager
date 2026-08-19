@@ -703,3 +703,71 @@ async fn test_dynamic_items_sorting_options() {
     let small_pos_dup = text_dup.find("Small Folder").unwrap();
     assert!(big_pos_dup < small_pos_dup);
 }
+
+#[tokio::test]
+async fn test_agent_status_pill_endpoint_all_online() {
+    let mock_server = setup_mock_agent_server().await;
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let response = server.get("/components/agent-status-pill.html").await;
+    response.assert_status_ok();
+    response.assert_text_contains("agent-status-pill");
+    response.assert_text_contains("status-healthy");
+    response.assert_text_contains("1/1 Online");
+    response.assert_text_contains("href=\"/agents\"");
+}
+
+#[tokio::test]
+async fn test_agent_status_pill_endpoint_with_offline_agent() {
+    let config = create_test_config(); // Test config has unreachable localhost:3001, localhost:3002
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let response = server.get("/components/agent-status-pill.html").await;
+    response.assert_status_ok();
+    response.assert_text_contains("agent-status-pill");
+    response.assert_text_contains("status-danger");
+    response.assert_text_contains("0/2 Online");
+}
+
+#[tokio::test]
+async fn test_agent_status_pill_endpoint_no_agents() {
+    let mut config = create_test_config();
+    config.agents.clear();
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let response = server.get("/components/agent-status-pill.html").await;
+    response.assert_status_ok();
+    response.assert_text_contains("agent-status-pill");
+    response.assert_text_contains("status-empty");
+    response.assert_text_contains("0 Agents");
+}
+
+#[tokio::test]
+async fn test_agent_status_pill_endpoint_with_disabled_agent() {
+    let mock_server = setup_mock_agent_server().await;
+    let mut config = create_test_config_with_mock_server(&mock_server.uri());
+    config.agents.push(Agent {
+        name: "disabled-agent".to_string(),
+        hostname: "localhost:9999".to_string(),
+        api_key: "key".to_string(),
+    });
+
+    let app_state = create_test_app_state(config);
+    {
+        let mut disabled = app_state.disabled_agents.write().unwrap();
+        disabled.insert("disabled-agent".to_string());
+    }
+
+    let app = stignore_manager::create_app(app_state);
+    let server = TestServer::new(app).unwrap();
+
+    let response = server.get("/components/agent-status-pill.html").await;
+    response.assert_status_ok();
+    response.assert_text_contains("status-warning");
+    response.assert_text_contains("1/1 Online");
+    response.assert_text_contains("1 disabled");
+}

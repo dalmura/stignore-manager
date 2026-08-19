@@ -36,6 +36,7 @@ pub fn router() -> Router<AppState> {
         .route("/agent-modal.html", post(agent_modal))
         .route("/agents/toggle", post(toggle_agent))
         .route("/agents-table.html", get(agents_table))
+        .route("/agent-status-pill.html", get(agent_status_pill))
         .route("/ignore", post(ignore_item))
         .route("/unignore", post(unignore_item))
         .route("/delete", post(delete_item))
@@ -1155,6 +1156,117 @@ async fn agents_table(State(state): State<AppState>, auth_user: AuthUser) -> imp
 
     RenderHtml(
         Key("components/agents-table.html".to_string()),
+        state.engine,
+        context.into_json(),
+    )
+}
+
+pub async fn agent_status_pill(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+) -> impl IntoResponse {
+    let mut context = state.context.clone();
+    auth::inject_auth_context(&mut context, &auth_user);
+
+    let disabled_agents = state.disabled_agents.read().unwrap().clone();
+    let total = state.config.agents.len();
+
+    if total == 0 {
+        context.insert("status_level", "empty");
+        context.insert("label", "0 Agents");
+        context.insert("tooltip", "No agents configured • Click to view Agents");
+        context.insert("total", &0);
+        context.insert("enabled", &0);
+        context.insert("online", &0);
+        context.insert("offline", &0);
+        context.insert("disabled", &0);
+
+        return RenderHtml(
+            Key("components/agent-status-pill.html".to_string()),
+            state.engine,
+            context.into_json(),
+        );
+    }
+
+    let mut set = tokio::task::JoinSet::new();
+    for agent in state.config.agents.clone() {
+        let is_enabled = !disabled_agents.contains(&agent.name);
+        let client = state.agent_client.clone();
+        set.spawn(async move {
+            if !is_enabled {
+                (agent.name, false, true)
+            } else {
+                let is_online = client.get_categories(&agent).await.is_ok();
+                (agent.name, is_online, false)
+            }
+        });
+    }
+
+    let mut online_count = 0;
+    let mut disabled_count = 0;
+    let mut offline_count = 0;
+
+    while let Some(res) = set.join_next().await {
+        if let Ok((_name, is_online, is_disabled)) = res {
+            if is_disabled {
+                disabled_count += 1;
+            } else if is_online {
+                online_count += 1;
+            } else {
+                offline_count += 1;
+            }
+        }
+    }
+
+    let enabled_count = total - disabled_count;
+
+    let status_level = if enabled_count == 0 {
+        "warning"
+    } else if online_count == enabled_count && offline_count == 0 {
+        if disabled_count > 0 {
+            "warning"
+        } else {
+            "healthy"
+        }
+    } else if online_count > 0 {
+        "warning"
+    } else {
+        "danger"
+    };
+
+    let label = if disabled_count > 0 {
+        format!("{}/{} Online", online_count, enabled_count)
+    } else {
+        format!("{}/{} Online", online_count, total)
+    };
+
+    let mut tooltip_parts = Vec::new();
+    if disabled_count > 0 {
+        tooltip_parts.push(format!(
+            "{}/{} active agents online",
+            online_count, enabled_count
+        ));
+        tooltip_parts.push(format!("{} disabled", disabled_count));
+    } else {
+        tooltip_parts.push(format!("{}/{} agents online", online_count, total));
+    }
+    if offline_count > 0 {
+        tooltip_parts.push(format!("{} unreachable", offline_count));
+    }
+    tooltip_parts.push("Click to view Agents".to_string());
+    let tooltip = tooltip_parts.join(" • ");
+
+    context.insert("status_level", status_level);
+    context.insert("label", &label);
+    context.insert("tooltip", &tooltip);
+    context.insert("total", &total);
+    context.insert("enabled", &enabled_count);
+    context.insert("online", &online_count);
+    context.insert("offline", &offline_count);
+    context.insert("disabled", &disabled_count);
+
+    RenderHtml(
+        Key("components/agent-status-pill.html".to_string()),
         state.engine,
         context.into_json(),
     )
