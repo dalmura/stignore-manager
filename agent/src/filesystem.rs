@@ -4,10 +4,118 @@ use stignore_lib::ItemGroup;
 
 /* generic functions - keeping for backward compatibility if needed */
 
-/// Checks if a directory entry represents a Syncthing system file or folder
-/// These include .stignore, .stfolder, .stversions, and any other .st* items
+/// Checks if a directory entry represents a Syncthing system file, folder, or temporary transfer file
+/// These include .stignore, .stfolder, .stversions, any other .st* items, and .syncthing.* temporary files
 fn is_syncthing_system_item(entry: &fs::DirEntry) -> bool {
-    entry.file_name().to_string_lossy().starts_with(".st")
+    let name = entry.file_name();
+    let name_str = name.to_string_lossy();
+    name_str.starts_with(".st") || name_str.starts_with(".syncthing.")
+}
+
+/// Recursively calculates total size of a directory in kilobytes
+pub fn calculate_dir_size_kb(path: &Path) -> u64 {
+    let mut total_bytes = 0u64;
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let p = entry.path();
+            if let Ok(ft) = entry.file_type() {
+                if ft.is_dir() {
+                    total_bytes += calculate_dir_size_kb(&p) * 1024;
+                } else if let Ok(meta) = entry.metadata() {
+                    total_bytes += meta.len();
+                }
+            }
+        }
+    }
+    total_bytes / 1024
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct SyncthingMeta {
+    pub has_conflicts: bool,
+    pub conflict_count: u32,
+    pub is_syncing: bool,
+    pub stversions_size_kb: u64,
+    pub stfolder_present: bool,
+}
+
+/// Scans a directory for immediate Syncthing metadata (conflicts, active syncing, .stversions, .stfolder)
+pub fn scan_syncthing_meta(dir_path: &Path) -> SyncthingMeta {
+    let mut conflict_count = 0u32;
+    let mut is_syncing = false;
+    let mut stfolder_present = false;
+    let mut stversions_size_kb = 0u64;
+
+    if let Ok(entries) = fs::read_dir(dir_path) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let name = entry.file_name().to_string_lossy().to_string();
+
+            if name == ".stfolder" {
+                stfolder_present = true;
+            } else if name == ".stversions" {
+                stversions_size_kb = calculate_dir_size_kb(&entry.path());
+            }
+
+            if name.starts_with(".syncthing.") {
+                is_syncing = true;
+            }
+
+            if name.contains(".sync-conflict-") {
+                conflict_count += 1;
+            }
+        }
+    }
+
+    SyncthingMeta {
+        has_conflicts: conflict_count > 0,
+        conflict_count,
+        is_syncing,
+        stversions_size_kb,
+        stfolder_present,
+    }
+}
+
+/// Constructs a directory ItemGroup combining local Syncthing metadata with aggregated child metadata
+pub fn create_dir_item_group(
+    id: String,
+    name: String,
+    dir_path: &Path,
+    children: Vec<ItemGroup>,
+    leaf: bool,
+) -> ItemGroup {
+    let meta = scan_syncthing_meta(dir_path);
+
+    let child_conflicts_count: u32 = children.iter().map(|c| c.conflict_count).sum();
+    let total_conflict_count = if leaf {
+        child_conflicts_count
+    } else {
+        meta.conflict_count + child_conflicts_count
+    };
+    let has_conflicts =
+        total_conflict_count > 0 || meta.has_conflicts || children.iter().any(|c| c.has_conflicts);
+
+    let child_syncing = children.iter().any(|c| c.is_syncing);
+    let is_syncing = meta.is_syncing || child_syncing;
+
+    let child_stversions: u64 = children.iter().map(|c| c.stversions_size_kb).sum();
+    let total_stversions = meta.stversions_size_kb + child_stversions;
+
+    let child_stfolder = children.iter().any(|c| c.stfolder_present);
+    let stfolder_present = meta.stfolder_present || child_stfolder;
+
+    ItemGroup {
+        id,
+        name,
+        size_kb: children.iter().map(|c| c.size_kb).sum(),
+        items: children,
+        leaf,
+        copy_count: 1,
+        has_conflicts,
+        conflict_count: total_conflict_count,
+        is_syncing,
+        stversions_size_kb: total_stversions,
+        stfolder_present,
+    }
 }
 
 /// Helper function to convert folder path components to a full filesystem path
@@ -40,18 +148,13 @@ fn dir_to_item(entry: fs::DirEntry) -> ItemGroup {
         leaf = true;
     }
 
-    ItemGroup {
-        id: filename.clone(),
-        name: filename,
-        size_kb: children.iter().map(|c| c.size_kb).sum(),
-        items: children,
-        leaf,
-        copy_count: 1,
-    }
+    create_dir_item_group(filename.clone(), filename, &entry_path, children, leaf)
 }
 
 fn file_to_item(entry: fs::DirEntry) -> ItemGroup {
     let filename = entry.file_name().to_string_lossy().to_string();
+    let is_conflict = filename.contains(".sync-conflict-");
+    let is_syncing = filename.starts_with(".syncthing.");
 
     ItemGroup {
         id: filename.clone(),
@@ -60,6 +163,11 @@ fn file_to_item(entry: fs::DirEntry) -> ItemGroup {
         items: vec![],
         leaf: false,
         copy_count: 1,
+        has_conflicts: is_conflict,
+        conflict_count: if is_conflict { 1 } else { 0 },
+        is_syncing,
+        stversions_size_kb: 0,
+        stfolder_present: false,
     }
 }
 

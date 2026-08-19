@@ -582,6 +582,7 @@ async fn test_dynamic_items_sorting_options() {
                     items: vec![],
                     leaf: false,
                     copy_count: 1,
+                    ..Default::default()
                 },
                 ItemGroup {
                     id: "Media/Big".to_string(),
@@ -590,6 +591,7 @@ async fn test_dynamic_items_sorting_options() {
                     items: vec![],
                     leaf: false,
                     copy_count: 1,
+                    ..Default::default()
                 },
                 ItemGroup {
                     id: "Media/Medium".to_string(),
@@ -598,10 +600,12 @@ async fn test_dynamic_items_sorting_options() {
                     items: vec![],
                     leaf: false,
                     copy_count: 1,
+                    ..Default::default()
                 },
             ],
             leaf: false,
             copy_count: 1,
+            ..Default::default()
         }],
     };
 

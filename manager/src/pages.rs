@@ -11,6 +11,10 @@ pub struct CategoryInfo {
     pub name: String,
     pub size_kb: u64,
     pub item_count: usize,
+    pub stversions_size_kb: u64,
+    pub stfolder_present: bool,
+    pub has_conflicts: bool,
+    pub is_syncing: bool,
 }
 
 #[derive(Serialize)]
@@ -80,11 +84,18 @@ pub async fn build_agent_summaries(state: &AppState) -> Vec<AgentSummary> {
                                     let size_kb = item_group.size_kb;
                                     let item_count = item_group.items.len();
 
-                                    if size_kb > 0 || item_count > 0 {
+                                    if size_kb > 0
+                                        || item_count > 0
+                                        || item_group.stversions_size_kb > 0
+                                    {
                                         category_infos.push(CategoryInfo {
                                             name: category.name.clone(),
                                             size_kb,
                                             item_count,
+                                            stversions_size_kb: item_group.stversions_size_kb,
+                                            stfolder_present: item_group.stfolder_present,
+                                            has_conflicts: item_group.has_conflicts,
+                                            is_syncing: item_group.is_syncing,
                                         });
                                     }
 

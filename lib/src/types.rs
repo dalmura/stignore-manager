@@ -4,7 +4,7 @@ use std::ops::Add;
 
 pub const AGENT_API_V1_PREFIX: &str = "api/v1";
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct ItemGroup {
     pub id: String,
     pub name: String,
@@ -13,6 +13,16 @@ pub struct ItemGroup {
     pub leaf: bool,
     #[serde(default)]
     pub copy_count: u8,
+    #[serde(default)]
+    pub has_conflicts: bool,
+    #[serde(default)]
+    pub conflict_count: u32,
+    #[serde(default)]
+    pub is_syncing: bool,
+    #[serde(default)]
+    pub stversions_size_kb: u64,
+    #[serde(default)]
+    pub stfolder_present: bool,
 }
 
 impl PartialEq for ItemGroup {
@@ -30,6 +40,10 @@ impl Hash for ItemGroup {
 }
 
 impl ItemGroup {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
     pub fn has_insufficient_copies(&self, minimum_copies: u8) -> bool {
         if self.copy_count < minimum_copies {
             return true;
@@ -112,6 +126,11 @@ impl Add for ItemGroup {
             } else {
                 self.copy_count + other.copy_count
             },
+            has_conflicts: self.has_conflicts || other.has_conflicts,
+            conflict_count: self.conflict_count + other.conflict_count,
+            is_syncing: self.is_syncing || other.is_syncing,
+            stversions_size_kb: self.stversions_size_kb + other.stversions_size_kb,
+            stfolder_present: self.stfolder_present || other.stfolder_present,
         }
     }
 }
@@ -351,6 +370,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 1,
+            ..Default::default()
         };
 
         let item2 = ItemGroup {
@@ -360,6 +380,7 @@ mod tests {
             items: vec![],
             leaf: false,
             copy_count: 2,
+            ..Default::default()
         };
 
         assert_eq!(item1, item2);
@@ -374,6 +395,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 2,
+            ..Default::default()
         };
 
         assert!(!item.has_insufficient_copies(1));
@@ -390,6 +412,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 1,
+            ..Default::default()
         };
 
         let parent_with_3_copies = ItemGroup {
@@ -399,6 +422,7 @@ mod tests {
             items: vec![child_with_1_copy],
             leaf: false,
             copy_count: 3,
+            ..Default::default()
         };
 
         assert!(parent_with_3_copies.has_insufficient_copies(2));
@@ -415,6 +439,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 1,
+            ..Default::default()
         };
 
         let child2 = ItemGroup {
@@ -424,6 +449,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 1,
+            ..Default::default()
         };
 
         let parent1 = ItemGroup {
@@ -433,6 +459,7 @@ mod tests {
             items: vec![child1],
             leaf: false,
             copy_count: 1,
+            ..Default::default()
         };
 
         let parent2 = ItemGroup {
@@ -442,6 +469,7 @@ mod tests {
             items: vec![child2],
             leaf: false,
             copy_count: 1,
+            ..Default::default()
         };
 
         let result = parent1 + parent2;
@@ -460,6 +488,7 @@ mod tests {
                 items: vec![],
                 leaf: true,
                 copy_count: 1,
+                ..Default::default()
             }],
         };
         let json = serde_json::to_string(&category_response).unwrap();
@@ -502,6 +531,7 @@ mod tests {
             items: vec![],
             leaf: false,
             copy_count: 1,
+            ..Default::default()
         };
         let item_big = ItemGroup {
             id: "big".to_string(),
@@ -510,6 +540,7 @@ mod tests {
             items: vec![],
             leaf: false,
             copy_count: 1,
+            ..Default::default()
         };
         let item_medium = ItemGroup {
             id: "medium".to_string(),
@@ -518,6 +549,7 @@ mod tests {
             items: vec![],
             leaf: false,
             copy_count: 1,
+            ..Default::default()
         };
 
         let original = vec![item_small.clone(), item_big.clone(), item_medium.clone()];
@@ -560,6 +592,7 @@ mod tests {
             items: vec![],
             leaf: false,
             copy_count: 1,
+            ..Default::default()
         };
         let item2 = ItemGroup {
             id: "a".to_string(),
@@ -568,6 +601,7 @@ mod tests {
             items: vec![],
             leaf: false,
             copy_count: 1,
+            ..Default::default()
         };
 
         let mut items = vec![item1, item2];
@@ -575,5 +609,75 @@ mod tests {
         // Ties broken by name A-Z
         assert_eq!(items[0].name, "Alpha");
         assert_eq!(items[1].name, "Zeta");
+    }
+
+    #[test]
+    fn test_syncthing_metadata_merging() {
+        let item1 = ItemGroup {
+            id: "folder".to_string(),
+            name: "Folder".to_string(),
+            size_kb: 1000,
+            items: vec![],
+            leaf: false,
+            copy_count: 1,
+            has_conflicts: true,
+            conflict_count: 2,
+            is_syncing: false,
+            stversions_size_kb: 500,
+            stfolder_present: true,
+        };
+
+        let item2 = ItemGroup {
+            id: "folder".to_string(),
+            name: "Folder".to_string(),
+            size_kb: 1000,
+            items: vec![],
+            leaf: false,
+            copy_count: 1,
+            has_conflicts: false,
+            conflict_count: 0,
+            is_syncing: true,
+            stversions_size_kb: 300,
+            stfolder_present: false,
+        };
+
+        let merged = item1 + item2;
+        assert_eq!(merged.copy_count, 2);
+        assert!(merged.has_conflicts);
+        assert_eq!(merged.conflict_count, 2);
+        assert!(merged.is_syncing);
+        assert_eq!(merged.stversions_size_kb, 800);
+        assert!(merged.stfolder_present);
+    }
+
+    #[test]
+    fn test_syncthing_metadata_serialization() {
+        let item = ItemGroup {
+            id: "sync_item".to_string(),
+            name: "Sync Item".to_string(),
+            size_kb: 500,
+            items: vec![],
+            leaf: true,
+            copy_count: 1,
+            has_conflicts: true,
+            conflict_count: 3,
+            is_syncing: true,
+            stversions_size_kb: 1024,
+            stfolder_present: true,
+        };
+
+        let json = serde_json::to_string(&item).unwrap();
+        assert!(json.contains("\"has_conflicts\":true"));
+        assert!(json.contains("\"conflict_count\":3"));
+        assert!(json.contains("\"is_syncing\":true"));
+        assert!(json.contains("\"stversions_size_kb\":1024"));
+        assert!(json.contains("\"stfolder_present\":true"));
+
+        let deserialized: ItemGroup = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.has_conflicts);
+        assert_eq!(deserialized.conflict_count, 3);
+        assert!(deserialized.is_syncing);
+        assert_eq!(deserialized.stversions_size_kb, 1024);
+        assert!(deserialized.stfolder_present);
     }
 }

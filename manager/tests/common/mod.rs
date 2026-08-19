@@ -93,9 +93,11 @@ pub fn create_mock_category_response() -> AgentCategoryListingResponse {
             items: vec![],
             leaf: false,
             copy_count: 1,
+            ..Default::default()
         }],
         leaf: false,
         copy_count: 1,
+        ..Default::default()
     };
 
     AgentCategoryListingResponse { items: vec![item1] }
@@ -109,6 +111,7 @@ pub fn create_mock_item_info_response() -> AgentItemInfoResponse {
         items: vec![],
         leaf: true,
         copy_count: 1,
+        ..Default::default()
     };
 
     AgentItemInfoResponse { item }

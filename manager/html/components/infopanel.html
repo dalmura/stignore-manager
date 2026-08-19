@@ -70,7 +70,7 @@
                             </button>
                         </div>
 
-                        <div class="mb-2">
+                        <div class="mb-2 d-flex flex-wrap gap-1">
                             {% if i.sync_status == "In Sync" %}
                             <span class="badge bg-success d-flex align-items-center">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
@@ -93,14 +93,38 @@
                                 {{ i.sync_status }}
                             </span>
                             {% endif %}
+                            {% if i.item.is_syncing %}
+                            <span class="badge bg-info text-dark d-flex align-items-center" title="Sync in progress">
+                                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" style="width: 0.7rem; height: 0.7rem;"></span>
+                                Syncing
+                            </span>
+                            {% endif %}
+                            {% if i.item.has_conflicts %}
+                            <span class="badge bg-danger d-flex align-items-center" title="{{ i.item.conflict_count | default(value=1) }} sync conflict(s) detected">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                                </svg>
+                                Conflict{% if i.item.conflict_count and i.item.conflict_count > 1 %} ({{ i.item.conflict_count }}){% endif %}
+                            </span>
+                            {% endif %}
                         </div>
 
                         {% if i.sync_status != "Missing" %}
-                        <div class="mb-2 text-muted small">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
-                                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-                            </svg>
-                            {{ i.item.size_kb | humansize }}
+                        <div class="mb-2 text-muted small d-flex flex-column gap-1">
+                            <div>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                                </svg>
+                                {{ i.item.size_kb | humansize }}
+                            </div>
+                            {% if i.item.stversions_size_kb and i.item.stversions_size_kb > 0 %}
+                            <div class="text-secondary small" title="Syncthing archive versions">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                                </svg>
+                                Archive: {{ i.item.stversions_size_kb | humansize }}
+                            </div>
+                            {% endif %}
                         </div>
                         {% endif %}
                         <div class="d-flex gap-2">

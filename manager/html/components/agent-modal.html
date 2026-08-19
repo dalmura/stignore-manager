@@ -16,11 +16,32 @@
         {% else %}
             <span class="badge bg-warning text-dark">{{ agent_item.sync_status }}</span>
         {% endif %}
+        {% if agent_item.item.is_syncing %}
+            <span class="badge bg-info text-dark ms-1">
+                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" style="width: 0.7rem; height: 0.7rem;"></span>
+                Syncing in progress
+            </span>
+        {% endif %}
+        {% if agent_item.item.has_conflicts %}
+            <span class="badge bg-danger ms-1">
+                {{ agent_item.item.conflict_count | default(value=1) }} sync conflict(s)
+            </span>
+        {% endif %}
     </div>
 
     <div class="mb-3">
         <strong>Size:</strong>
         <span class="badge bg-secondary">{{ agent_item.item.size_kb | humansize }}</span>
+        {% if agent_item.item.stversions_size_kb > 0 %}
+            <span class="badge bg-secondary-subtle text-body-secondary ms-1" title="Syncthing .stversions archive">
+                Archive: {{ agent_item.item.stversions_size_kb | humansize }}
+            </span>
+        {% endif %}
+        {% if agent_item.item.stfolder_present %}
+            <span class="badge bg-success-subtle text-success-emphasis ms-1" title="Valid .stfolder marker found">.stfolder ✓</span>
+        {% else %}
+            <span class="badge bg-danger-subtle text-danger-emphasis ms-1" title="Missing .stfolder marker">.stfolder ✗</span>
+        {% endif %}
     </div>
 
     {% if merged_items %}

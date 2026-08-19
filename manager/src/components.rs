@@ -56,6 +56,11 @@ struct ItemGroupWithFlags {
     pub leaf: bool,
     pub copy_count: u8,
     pub has_insufficient_copies: bool,
+    pub has_conflicts: bool,
+    pub conflict_count: u32,
+    pub is_syncing: bool,
+    pub stversions_size_kb: u64,
+    pub stfolder_present: bool,
 }
 
 impl From<&ItemGroup> for ItemGroupWithFlags {
@@ -69,6 +74,11 @@ impl From<&ItemGroup> for ItemGroupWithFlags {
             leaf: item.leaf,
             copy_count: item.copy_count,
             has_insufficient_copies: false, // Will be set separately
+            has_conflicts: item.has_conflicts,
+            conflict_count: item.conflict_count,
+            is_syncing: item.is_syncing,
+            stversions_size_kb: item.stversions_size_kb,
+            stfolder_present: item.stfolder_present,
         }
     }
 }

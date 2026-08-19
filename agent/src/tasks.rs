@@ -28,15 +28,13 @@ pub async fn category_list(State(data): State<AgentData>) -> impl IntoResponse {
         .map(|c| {
             let category_path = build_category_base_path(&data.agent, c);
             let children = filesystem::build_items(&category_path, false);
-
-            ItemGroup {
-                id: c.id.clone(),
-                name: c.name.clone(),
-                size_kb: children.iter().map(|c| c.size_kb).sum(),
-                items: children,
-                leaf: false,
-                copy_count: 1,
-            }
+            filesystem::create_dir_item_group(
+                c.id.clone(),
+                c.name.clone(),
+                &category_path,
+                children,
+                false,
+            )
         })
         .collect();
 
@@ -111,14 +109,13 @@ pub async fn post_item_info(
     if item_path.len() == 1 {
         // Return the category itself
         let items = filesystem::build_items(&category_path, false);
-        let category_item = ItemGroup {
-            id: category.id.clone(),
-            name: category.name.clone(),
-            size_kb: items.iter().map(|c| c.size_kb).sum(),
+        let category_item = filesystem::create_dir_item_group(
+            category.id.clone(),
+            category.name.clone(),
+            &category_path,
             items,
-            leaf: false,
-            copy_count: 1,
-        };
+            false,
+        );
         return (
             StatusCode::OK,
             Json(ItemInfoResponse {
@@ -1341,6 +1338,113 @@ mod tests {
             vec![
                 b'M', b'o', b'v', b'i', b'e', b' ', b'1', b'\n', 0xFF, 0xFE, 0xFD, b'\n',
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_syncthing_stfolder_and_stversions_metadata() {
+        let (server, temp_dir) = setup_test_server().await;
+
+        // Populate .stversions in movies directory with some data
+        let stversions_dir = temp_dir.path().join("movies").join(".stversions");
+        fs::create_dir_all(&stversions_dir).unwrap();
+        fs::write(
+            stversions_dir.join("old_movie.mkv"),
+            vec![0u8; 10240], // 10 KB
+        )
+        .unwrap();
+
+        let response = server
+            .get("/api/v1/categories")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .await;
+        response.assert_status(StatusCode::OK);
+
+        let json: CategoryListingResponse = response.json();
+        let movies_cat = json.items.iter().find(|c| c.id == "movies").unwrap();
+
+        // .stfolder is present in movies category
+        assert!(movies_cat.stfolder_present);
+        // .stversions size is computed
+        assert_eq!(movies_cat.stversions_size_kb, 10);
+    }
+
+    #[tokio::test]
+    async fn test_syncthing_conflict_detection() {
+        let (server, temp_dir) = setup_test_server().await;
+
+        // Create a sync conflict file in Movie 1 (2023)
+        let conflict_file = temp_dir
+            .path()
+            .join("movies")
+            .join("Movie 1 (2023)")
+            .join("Movie 1 (2023).sync-conflict-20230815-120000-AGENT1.mkv");
+        fs::write(&conflict_file, "conflict data").unwrap();
+
+        let request_body = ItemInfoRequest {
+            item_path: vec![MOVIES_ID.to_string(), "Movie 1 (2023)".to_string()],
+        };
+
+        let response = server
+            .post("/api/v1/items")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&request_body)
+            .await;
+        response.assert_status(StatusCode::OK);
+
+        let json: ItemInfoResponse = response.json();
+        assert!(json.item.has_conflicts);
+        assert_eq!(json.item.conflict_count, 1);
+
+        // Also check that category root aggregates conflict
+        let cat_request_body = ItemInfoRequest {
+            item_path: vec![MOVIES_ID.to_string()],
+        };
+        let cat_response = server
+            .post("/api/v1/items")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&cat_request_body)
+            .await;
+        cat_response.assert_status(StatusCode::OK);
+
+        let cat_json: ItemInfoResponse = cat_response.json();
+        assert!(cat_json.item.has_conflicts);
+        assert_eq!(cat_json.item.conflict_count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_syncthing_in_progress_sync_detection() {
+        let (server, temp_dir) = setup_test_server().await;
+
+        // Create a .syncthing.tmp transfer file
+        let sync_file = temp_dir
+            .path()
+            .join("movies")
+            .join("Movie 1 (2023)")
+            .join(".syncthing.Movie 1 (2023).mkv.tmp");
+        fs::write(&sync_file, "downloading...").unwrap();
+
+        let request_body = ItemInfoRequest {
+            item_path: vec![MOVIES_ID.to_string(), "Movie 1 (2023)".to_string()],
+        };
+
+        let response = server
+            .post("/api/v1/items")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&request_body)
+            .await;
+        response.assert_status(StatusCode::OK);
+
+        let json: ItemInfoResponse = response.json();
+        // Item should report is_syncing: true
+        assert!(json.item.is_syncing);
+
+        // The .syncthing.*.tmp file should not be listed as a regular item
+        let file_names: Vec<&String> = json.item.items.iter().map(|i| &i.name).collect();
+        assert!(
+            !file_names
+                .iter()
+                .any(|name| name.starts_with(".syncthing."))
         );
     }
 }

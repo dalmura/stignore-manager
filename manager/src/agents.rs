@@ -95,27 +95,13 @@ pub async fn item_info(
     disabled_agents: &std::collections::HashSet<String>,
 ) -> Result<ItemInfoResponse, crate::agent_client::AgentError> {
     let mut agent_responses: Vec<(Agent, ItemGroup)> = vec![];
-    let mut consolidated: ItemGroup = ItemGroup {
-        id: "".to_string(),
-        name: "".to_string(),
-        size_kb: 0,
-        items: vec![],
-        leaf: false,
-        copy_count: 0,
-    };
+    let mut consolidated: ItemGroup = ItemGroup::empty();
 
     let owned_path: Vec<String> = item_path.iter().map(|v| v.to_string()).collect();
 
     for agent in agents {
         if disabled_agents.contains(&agent.name) {
-            let empty_item = ItemGroup {
-                id: "".to_string(),
-                name: "".to_string(),
-                size_kb: 0,
-                items: vec![],
-                leaf: false,
-                copy_count: 0,
-            };
+            let empty_item = ItemGroup::empty();
             agent_responses.push((agent, empty_item.clone()));
             consolidated = empty_item + consolidated;
             continue;
@@ -135,14 +121,7 @@ pub async fn item_info(
             }
             Err(_) => {
                 // Handle error by creating an empty response (similar to 404 handling)
-                let empty_item = ItemGroup {
-                    id: "".to_string(),
-                    name: "".to_string(),
-                    size_kb: 0,
-                    items: vec![],
-                    leaf: false,
-                    copy_count: 0,
-                };
+                let empty_item = ItemGroup::empty();
                 agent_responses.push((agent, empty_item.clone()));
                 consolidated = empty_item + consolidated;
             }
@@ -168,6 +147,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 0,
+            ..Default::default()
         };
 
         let mut parent = ItemGroup {
@@ -177,6 +157,7 @@ mod tests {
             items: vec![child.clone()],
             leaf: false,
             copy_count: 0,
+            ..Default::default()
         };
 
         set_copy_count_recursive(&mut parent, 3);
@@ -195,6 +176,7 @@ mod tests {
                 items: vec![],
                 leaf: true,
                 copy_count: 1,
+                ..Default::default()
             },
             ItemGroup {
                 id: "a".to_string(),
@@ -203,6 +185,7 @@ mod tests {
                 items: vec![],
                 leaf: true,
                 copy_count: 1,
+                ..Default::default()
             },
         ];
 
@@ -221,6 +204,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 1,
+            ..Default::default()
         };
 
         let child_a = ItemGroup {
@@ -230,6 +214,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 1,
+            ..Default::default()
         };
 
         let mut items = vec![ItemGroup {
@@ -239,6 +224,7 @@ mod tests {
             items: vec![child_z, child_a], // Unsorted children
             leaf: false,
             copy_count: 1,
+            ..Default::default()
         }];
 
         sort_all_items(&mut items);
@@ -257,6 +243,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 1,
+            ..Default::default()
         };
 
         let agent_response = AgentCategoryListingResponse {
@@ -291,6 +278,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 1,
+            ..Default::default()
         };
 
         let response = ItemInfoResponse {
@@ -384,6 +372,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 0, // Will be set by consolidation logic
+            ..Default::default()
         };
 
         mock_client.add_category_response(
@@ -423,6 +412,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 0,
+            ..Default::default()
         };
 
         // Simulate two agents returning the same item
@@ -460,6 +450,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 0,
+            ..Default::default()
         };
 
         let item2 = ItemGroup {
@@ -469,6 +460,7 @@ mod tests {
             items: vec![],
             leaf: true,
             copy_count: 0,
+            ..Default::default()
         };
 
         let mut consolidated: HashMap<String, ItemGroup> = HashMap::new();
@@ -496,14 +488,7 @@ mod tests {
 
     #[test]
     fn test_empty_item_handling() {
-        let empty_item = ItemGroup {
-            id: "".to_string(),
-            name: "".to_string(),
-            size_kb: 0,
-            items: vec![],
-            leaf: false,
-            copy_count: 0,
-        };
+        let empty_item = ItemGroup::empty();
 
         let consolidated = empty_item.clone() + empty_item;
         assert_eq!(consolidated.copy_count, 0);

@@ -48,6 +48,14 @@
                     <span class="fw-medium item-title text-truncate">{{ i.name }}</span>
                 </div>
                 <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                    {% if i.is_syncing %}
+                    <span class="badge bg-info-subtle text-info-emphasis rounded-pill small" title="Sync in progress">
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="width: 0.6rem; height: 0.6rem;"></span>
+                    </span>
+                    {% endif %}
+                    {% if i.has_conflicts %}
+                    <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill small" title="{{ i.conflict_count | default(value=1) }} sync conflict(s)">⚠️</span>
+                    {% endif %}
                     <span class="badge bg-secondary-subtle text-body-secondary rounded-pill font-monospace small" title="Total size: {{ i.size_kb | humansize }}">{{ i.size_kb | humansize }}</span>
                     <span class="badge text-bg-primary rounded-pill" title="{{ i.items | length }} items">{{ i.items | length }}</span>
                 </div>
