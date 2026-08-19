@@ -966,6 +966,21 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // Hotkey: '?' to toggle Help & Keyboard Shortcuts modal
+        if (event.key === '?' && !isInputFocused) {
+            event.preventDefault();
+            const helpModalEl = document.getElementById('helpModal');
+            if (helpModalEl && typeof bootstrap !== 'undefined') {
+                const bsModal = bootstrap.Modal.getOrCreateInstance(helpModalEl);
+                if (helpModalEl.classList.contains('show')) {
+                    bsModal.hide();
+                } else {
+                    bsModal.show();
+                }
+            }
+            return;
+        }
+
         // Hotkey: 'Escape' to dismiss open modals, clear search, or deselect
         if (event.key === 'Escape') {
             const openModalEl = document.querySelector('.modal.show');

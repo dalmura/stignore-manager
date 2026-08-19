@@ -1,0 +1,243 @@
+<!-- Keyboard Shortcuts & Help Modal -->
+<div class="modal fade" id="helpModal" tabindex="-1" aria-labelledby="helpModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title d-flex align-items-center gap-2" id="helpModalLabel">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary">
+                        <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                        <line x1="6" y1="8" x2="6" y2="8"></line>
+                        <line x1="10" y1="8" x2="10" y2="8"></line>
+                        <line x1="14" y1="8" x2="14" y2="8"></line>
+                        <line x1="18" y1="8" x2="18" y2="8"></line>
+                        <line x1="6" y1="12" x2="6" y2="12"></line>
+                        <line x1="10" y1="12" x2="10" y2="12"></line>
+                        <line x1="14" y1="12" x2="14" y2="12"></line>
+                        <line x1="18" y1="12" x2="18" y2="12"></line>
+                        <line x1="7" y1="16" x2="17" y2="16"></line>
+                    </svg>
+                    Keyboard Shortcuts &amp; Help
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Nav Tabs for Categories -->
+                <ul class="nav nav-pills mb-3" id="helpTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="shortcuts-tab" data-bs-toggle="pill" data-bs-target="#help-shortcuts" type="button" role="tab" aria-controls="help-shortcuts" aria-selected="true">
+                            ⌨️ Shortcuts
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="sync-guide-tab" data-bs-toggle="pill" data-bs-target="#help-sync" type="button" role="tab" aria-controls="help-sync" aria-selected="false">
+                            🔄 Syncthing &amp; Rules
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="examples-tab" data-bs-toggle="pill" data-bs-target="#help-examples" type="button" role="tab" aria-controls="help-examples" aria-selected="false">
+                            📝 .stignore Examples
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="helpTabContent">
+                    <!-- Tab 1: Shortcuts -->
+                    <div class="tab-pane fade show active" id="help-shortcuts" role="tabpanel" aria-labelledby="shortcuts-tab">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="card h-100 border p-3 bg-body-tertiary">
+                                    <h6 class="fw-bold mb-3 d-flex align-items-center text-primary">
+                                        Tree Navigation
+                                    </h6>
+                                    <table class="table table-sm table-borderless align-middle mb-0">
+                                        <tbody>
+                                            <tr>
+                                                <td class="text-nowrap"><kbd>↓</kbd> or <kbd>j</kbd></td>
+                                                <td class="small text-muted">Move selection down</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-nowrap"><kbd>↑</kbd> or <kbd>k</kbd></td>
+                                                <td class="small text-muted">Move selection up</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-nowrap"><kbd>→</kbd> or <kbd>l</kbd></td>
+                                                <td class="small text-muted">Drill down / expand folder</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-nowrap"><kbd>←</kbd> or <kbd>h</kbd></td>
+                                                <td class="small text-muted">Go back to parent column</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-nowrap"><kbd>Enter</kbd></td>
+                                                <td class="small text-muted">Select folder &amp; inspect</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card h-100 border p-3 bg-body-tertiary">
+                                    <h6 class="fw-bold mb-3 d-flex align-items-center text-primary">
+                                        Global &amp; Search
+                                    </h6>
+                                    <table class="table table-sm table-borderless align-middle mb-0">
+                                        <tbody>
+                                            <tr>
+                                                <td class="text-nowrap"><kbd>/</kbd></td>
+                                                <td class="small text-muted">Focus fuzzy search input</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-nowrap"><kbd>Esc</kbd></td>
+                                                <td class="small text-muted">Clear search / dismiss modal</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="text-nowrap"><kbd>?</kbd></td>
+                                                <td class="small text-muted">Open this help &amp; shortcuts modal</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: Syncthing & Ignore Rules Guide -->
+                    <div class="tab-pane fade" id="help-sync" role="tabpanel" aria-labelledby="sync-guide-tab">
+                        <div class="card border p-3 mb-3 bg-body-tertiary">
+                            <h6 class="fw-bold text-primary mb-2">How <code>.stignore</code> Management Works</h6>
+                            <p class="small text-muted mb-2">
+                                <strong>stignore-manager</strong> coordinates ignore rules and file replication across Syncthing nodes without requiring direct access to each machine.
+                            </p>
+                            <ul class="small text-muted ps-3 mb-0">
+                                <li class="mb-1"><strong>Ignore Item:</strong> Appends the relative item path to the agent's <code>.stignore</code> file, excluding it from Syncthing cluster synchronization.</li>
+                                <li class="mb-1"><strong>Unignore Item:</strong> Safely removes the rule from <code>.stignore</code>, resuming sync for that path.</li>
+                                <li class="mb-1"><strong>Copy Count &amp; Threshold:</strong> Tracks how many agents hold a copy of each file against the configured <code>minimum_copies</code> threshold. Items with insufficient copies are flagged with ⚠️.</li>
+                                <li><strong>Bulk Actions:</strong> Use the multi-agent selection checkboxes in the item details inspector to apply ignore, unignore, or deletion operations simultaneously.</li>
+                            </ul>
+                        </div>
+                        <div class="card border p-3 bg-body-tertiary">
+                            <h6 class="fw-bold text-primary mb-2">Role-Based Access Control (RBAC)</h6>
+                            <p class="small text-muted mb-0">
+                                When header authentication is enabled, operations are role-restricted:
+                                <br>• <strong>Admin:</strong> Full read and write access (Ignore, Unignore, Delete, Toggle Agents).
+                                <br>• <strong>Reader:</strong> Read-only browsing and status inspection.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Tab 3: .stignore Examples & Syntax Guide -->
+                    <div class="tab-pane fade" id="help-examples" role="tabpanel" aria-labelledby="examples-tab">
+                        <!-- Syntax Rules Cheat Sheet -->
+                        <div class="card border p-3 mb-3 bg-body-tertiary">
+                            <h6 class="fw-bold text-primary mb-2">Pattern Syntax Rules</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-borderless align-middle mb-0 small">
+                                    <thead>
+                                        <tr class="border-bottom text-muted">
+                                            <th style="width: 25%;">Pattern</th>
+                                            <th style="width: 35%;">Description</th>
+                                            <th style="width: 40%;">Example</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><code>filename</code></td>
+                                            <td class="text-muted">Matches file/dir anywhere in tree</td>
+                                            <td><code>.DS_Store</code>, <code>*.nfo</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>/dir/</code></td>
+                                            <td class="text-muted">Matches directory relative to category root</td>
+                                            <td><code>/Movie A (1989)/</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>*</code> / <code>?</code></td>
+                                            <td class="text-muted">Wildcard (multi / single char)</td>
+                                            <td><code>*sample*.mkv</code>, <code>Season ?/</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>**</code></td>
+                                            <td class="text-muted">Recursive directory match</td>
+                                            <td><code>**/extras/</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>!pattern</code></td>
+                                            <td class="text-muted">Inversion / exception rule (include)</td>
+                                            <td><code>!TV Show A (2003)/Season 01/</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>(?i)</code></td>
+                                            <td class="text-muted">Case-insensitive matching prefix</td>
+                                            <td><code>(?i)*sample*.mkv</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>(?d)</code></td>
+                                            <td class="text-muted">Allow parent directory deletion</td>
+                                            <td><code>(?d).DS_Store</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>#include</code></td>
+                                            <td class="text-muted">Include external rules file</td>
+                                            <td><code>#include .stglobalignore</code></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Real-World Example Sets -->
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="card h-100 border p-3 bg-body-tertiary">
+                                    <h6 class="fw-bold mb-2 text-primary">Movies &amp; TV Shows</h6>
+                                    <pre class="mb-0 p-2 rounded bg-dark text-light small font-monospace"><code># Ignore a whole movie
+Movie A (1989)/
+
+# Ignore a specific TV season
+TV Show A (2003)/Season 1/*
+TV Show A (2003)/Specials/
+
+# Ignore movie extras & samples
+Movie A (1989)/extras/
+(?i)*sample*.mkv
+
+# Sync ONLY Season 1 (ignore the rest)
+!TV Show A (2003)/Season 01/
+TV Show A (2003)/*
+
+# Ignore metadata & sidecars
+*.nfo
+*.sfv</code></pre>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card h-100 border p-3 bg-body-tertiary">
+                                    <h6 class="fw-bold mb-2 text-primary">OS &amp; Metadata Junk</h6>
+                                    <pre class="mb-0 p-2 rounded bg-dark text-light small font-monospace"><code># macOS metadata
+(?d).DS_Store
+(?d)._*
+
+# Windows thumbnails & desktop
+(?d)Thumbs.db
+(?d)desktop.ini
+
+# Synology & NAS indexing
+(?d)@eaDir/
+(?d).Trash-*/
+
+# Partial / temp downloads
+*.tmp
+*.part
+*.crdownload</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

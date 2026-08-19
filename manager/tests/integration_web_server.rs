@@ -183,3 +183,26 @@ async fn test_footer_agent_status_pill_rendering() {
     response.assert_text_contains("hx-trigger=\"load, every 30s\"");
     response.assert_text_contains("GitHub");
 }
+
+#[tokio::test]
+async fn test_help_modal_rendering() {
+    let config = create_test_config();
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let response = server.get("/").await;
+    response.assert_status_ok();
+    // Verify navbar help button
+    response.assert_text_contains("id=\"helpModalBtn\"");
+    response.assert_text_contains("data-bs-target=\"#helpModal\"");
+    // Verify modal elements
+    response.assert_text_contains("id=\"helpModal\"");
+    response.assert_text_contains("Keyboard Shortcuts");
+    response.assert_text_contains("Tree Navigation");
+    response.assert_text_contains("How <code>.stignore</code> Management Works");
+    response.assert_text_contains(".stignore Examples");
+    response.assert_text_contains("Pattern Syntax Rules");
+    response.assert_text_contains("Movies &amp; TV Shows");
+    response.assert_text_contains("Movie A (1989)/");
+    response.assert_text_contains("TV Show A (2003)/Season 1/*");
+}
