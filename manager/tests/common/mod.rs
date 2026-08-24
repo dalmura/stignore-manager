@@ -18,6 +18,7 @@ pub fn create_test_config() -> ManagerData {
             agent_timeout_seconds: 5,
             auth: AuthConfig::default(),
         },
+        integrations: IntegrationsConfig::default(),
         agents: vec![
             Agent {
                 name: "test-agent-1".to_string(),
@@ -65,6 +66,12 @@ pub fn create_test_app_state(config: ManagerData) -> AppState {
     context.insert("version", "0.1.0-test");
     context.insert("repo_url", "https://github.com/dalmura/stignore-manager");
 
+    let integrations =
+        std::sync::Arc::new(stignore_manager::integrations::IntegrationsManager::new(
+            &config.integrations,
+            config.manager.agent_timeout_seconds,
+        ));
+
     AppState {
         engine: TeraEngine(tera),
         context,
@@ -73,6 +80,7 @@ pub fn create_test_app_state(config: ManagerData) -> AppState {
         disabled_agents: std::sync::Arc::new(std::sync::RwLock::new(
             std::collections::HashSet::new(),
         )),
+        integrations,
     }
 }
 
@@ -158,6 +166,7 @@ pub fn create_test_config_with_mock_server(server_uri: &str) -> ManagerData {
             agent_timeout_seconds: 5,
             auth: AuthConfig::default(),
         },
+        integrations: IntegrationsConfig::default(),
         agents: vec![Agent {
             name: "test-agent-1".to_string(),
             hostname: server_uri.replace("http://", ""),

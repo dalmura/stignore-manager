@@ -126,6 +126,7 @@ pub async fn build_agent_summaries(state: &AppState) -> Vec<AgentSummary> {
                         crate::agent_client::AgentError::RequestFailed(_) => {
                             "Unreachable".to_string()
                         }
+                        crate::agent_client::AgentError::NotFound(_) => "Not Found".to_string(),
                         crate::agent_client::AgentError::InvalidResponse(_) => "Error".to_string(),
                         crate::agent_client::AgentError::OperationFailed(_) => "Error".to_string(),
                     };
@@ -139,6 +140,9 @@ pub async fn build_agent_summaries(state: &AppState) -> Vec<AgentSummary> {
                         }
                         crate::agent_client::AgentError::RequestFailed(_) => {
                             "Could not connect to agent".to_string()
+                        }
+                        crate::agent_client::AgentError::NotFound(msg) => {
+                            format!("Not found: {}", msg)
                         }
                         crate::agent_client::AgentError::InvalidResponse(msg) => {
                             format!("Invalid response: {}", msg)

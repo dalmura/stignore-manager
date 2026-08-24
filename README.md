@@ -106,11 +106,36 @@ role_header = "X-Proxy-Role"    # Configurable, defaults to "X-Proxy-Role"
 admin_role = "Admin"            # Configurable, defaults to "Admin"
 reader_role = "Reader"          # Configurable, defaults to "Reader"
 
+# Optional Radarr media integration (auto-cleanup when last copy is deleted)
+[integrations.radarr]
+enabled = true
+url = "http://localhost:7878"
+api_key = "550e8400-e29b-41d4-a716-446655440000"
+category_id = "movies"          # Matches category id defined on agents
+delete_files = false            # Agent already deletes filesystem files
+add_import_exclusion = false    # Prevent automated import lists from re-adding
+
+# Optional Sonarr media integration (auto-cleanup when last copy is deleted)
+[integrations.sonarr]
+enabled = true
+url = "http://localhost:8989"
+api_key = "550e8400-e29b-41d4-a716-446655440000"
+category_id = "tv"              # Matches category id defined on agents
+delete_files = false
+add_import_list_exclusion = false
+
 [[agents]]
 name = "Agent 1"
 hostname = "localhost:3001"
 api_key = "550e8400-e29b-41d4-a716-446655440000"
 ```
+
+## Media Integrations (Radarr & Sonarr)
+When configured, `stignore-manager` can automatically clean up media entries from **Radarr** (movies) and **Sonarr** (TV series / seasons) when items are deleted across all agents:
+- **Zero-Copy Cleanup**: When deleting an item (either via single-item delete or bulk delete), if the remaining copies count across all agents reaches `0`, the manager will contact Radarr / Sonarr to remove the media record.
+- **Granular Season Support**: Deleting a season folder (e.g. `Season 01`) under a Sonarr series will delete the season's episode files via the Sonarr API and automatically unmonitor that season to prevent automatic re-downloads.
+- **Import Exclusions**: Configurable default to add deleted titles to the import exclusion list (preventing RSS / Trakt lists from re-adding them), with an interactive toggle in the confirmation modal.
+- **Environment Overrides**: Fully configurable via environment variables (e.g., `RADARR_URL`, `RADARR_API_KEY`, `RADARR_CATEGORY`, `RADARR_ENABLED`, `SONARR_URL`, `SONARR_API_KEY`, etc.).
 
 ## Security & Authentication
 - **Agent API Keys**: Uses `X-API-Key` header with matching UUID keys to secure manager-to-agent communication.

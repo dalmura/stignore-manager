@@ -302,6 +302,125 @@ async fn test_bulk_delete_endpoint_success() {
 }
 
 #[tokio::test]
+async fn test_bulk_delete_with_missing_agent_treated_as_skipped() {
+    let mock_server1 = MockServer::start().await;
+    let mock_server2 = MockServer::start().await;
+
+    // Agent 1 succeeds
+    Mock::given(method("POST"))
+        .and(path("/api/v1/delete"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "success": true,
+            "message": "Item deleted"
+        })))
+        .mount(&mock_server1)
+        .await;
+
+    // Agent 2 returns 404 Not Found (item already absent)
+    Mock::given(method("POST"))
+        .and(path("/api/v1/delete"))
+        .and(header("X-API-Key", "test-key-2"))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({
+            "success": false,
+            "message": "Path 'movie.mkv' not found"
+        })))
+        .mount(&mock_server2)
+        .await;
+
+    let config = ManagerData {
+        manager: ManagerConfig {
+            port: 8080,
+            minimum_copies: 1,
+            agent_timeout_seconds: 5,
+            auth: AuthConfig::default(),
+        },
+        integrations: IntegrationsConfig::default(),
+        agents: vec![
+            Agent {
+                name: "agent-1".to_string(),
+                hostname: mock_server1.uri().replace("http://", ""),
+                api_key: "test-key-1".to_string(),
+            },
+            Agent {
+                name: "agent-2".to_string(),
+                hostname: mock_server2.uri().replace("http://", ""),
+                api_key: "test-key-2".to_string(),
+            },
+        ],
+    };
+
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let request_body = json!({
+        "agent_names": ["agent-1", "agent-2"],
+        "item_path": ["Movies", "Action", "movie.mkv"]
+    });
+
+    let response = server
+        .post("/components/bulk-delete")
+        .json(&request_body)
+        .await;
+
+    response.assert_status_ok();
+
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["success"], true);
+    assert_eq!(body["results"].as_array().unwrap().len(), 2);
+    assert!(
+        body["results"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Deleted item on agent-1")
+    );
+    assert!(
+        body["results"][1]["message"]
+            .as_str()
+            .unwrap()
+            .contains("already absent on agent-2 (skipped)")
+    );
+}
+
+#[tokio::test]
+async fn test_delete_item_already_absent_returns_success() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/delete"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({
+            "success": false,
+            "message": "Path 'movie.mkv' not found"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let response = server
+        .post("/components/delete")
+        .json(&json!({
+            "agent_name": "test-agent-1",
+            "item_path": ["Movies", "Action", "movie.mkv"]
+        }))
+        .await;
+
+    response.assert_status_ok();
+
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["success"], true);
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap()
+            .contains("already absent on test-agent-1")
+    );
+}
+
+#[tokio::test]
 async fn test_unignore_item_endpoint() {
     let mock_server = MockServer::start().await;
 

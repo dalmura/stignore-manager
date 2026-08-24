@@ -110,6 +110,22 @@ role_header = "X-Proxy-Role"    # Header for role/group
 admin_role = "Admin"            # Admin role identifier
 reader_role = "Reader"          # Reader role identifier
 
+[integrations.radarr]
+enabled = true
+url = "http://localhost:7878"
+api_key = "550e8400-e29b-41d4-a716-446655440000"
+category_id = "movies"
+delete_files = false
+add_import_exclusion = false
+
+[integrations.sonarr]
+enabled = true
+url = "http://localhost:8989"
+api_key = "550e8400-e29b-41d4-a716-446655440000"
+category_id = "tv"
+delete_files = false
+add_import_list_exclusion = false
+
 [[agents]]
 name = "Agent 1"
 hostname = "localhost:3001"

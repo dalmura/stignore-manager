@@ -9,7 +9,14 @@ pub enum AgentError {
     RequestFailed(reqwest::Error),
     Timeout(reqwest::Error),
     InvalidResponse(String),
+    NotFound(String),
     OperationFailed(String),
+}
+
+impl AgentError {
+    pub fn is_not_found(&self) -> bool {
+        matches!(self, AgentError::NotFound(_))
+    }
 }
 
 impl std::fmt::Display for AgentError {
@@ -18,6 +25,7 @@ impl std::fmt::Display for AgentError {
             AgentError::RequestFailed(e) => write!(f, "Request failed: {}", e),
             AgentError::Timeout(e) => write!(f, "Request timed out: {}", e),
             AgentError::InvalidResponse(msg) => write!(f, "Invalid response: {}", msg),
+            AgentError::NotFound(msg) => write!(f, "Not found: {}", msg),
             AgentError::OperationFailed(msg) => write!(f, "Operation failed: {}", msg),
         }
     }
@@ -138,6 +146,7 @@ impl AgentClient {
                     status,
                     error_body
                 );
+                return Err(AgentError::NotFound(error_body));
             } else {
                 tracing::error!(
                     "Agent '{}' returned error status {}: {}",

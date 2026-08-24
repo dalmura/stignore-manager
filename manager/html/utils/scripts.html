@@ -225,6 +225,46 @@ function setupDeleteModal(button) {
                 ? `This will permanently delete the directory and all of its contents from <strong>${escapeHtml(data.agent_name)}</strong>'s filesystem.`
                 : `This will permanently delete the file from <strong>${escapeHtml(data.agent_name)}</strong>'s filesystem.`;
 
+            let mediaSection = '';
+            if (data.matched_media) {
+                const service = escapeHtml(data.matched_media.service);
+                const title = escapeHtml(data.matched_media.title);
+                const details = escapeHtml(data.matched_media.details);
+                const isLast = data.is_last_copy;
+                const defaultExcl = data.matched_media.default_exclusion;
+
+                mediaSection = `
+                    <div class="card border-primary bg-primary-subtle p-3 my-2 text-start">
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="badge bg-primary me-2">${service}</span>
+                            <strong class="text-body">${title}</strong>
+                        </div>
+                        <div class="small text-secondary mb-2">${details}</div>
+                        ${isLast ? `
+                            <div class="alert alert-info py-1 px-2 my-1 small">
+                                <strong>Last Remaining Copy:</strong> Deleting this will remove the item across all agents.
+                            </div>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="deleteFromArrCheck" checked>
+                                <label class="form-check-label small text-body" for="deleteFromArrCheck">
+                                    Remove from ${service}
+                                </label>
+                            </div>
+                            <div class="form-check mt-1">
+                                <input class="form-check-input" type="checkbox" id="addImportExclusionCheck" ${defaultExcl ? 'checked' : ''}>
+                                <label class="form-check-label small text-secondary" for="addImportExclusionCheck">
+                                    Add to ${service} import exclusion list (prevent re-importing)
+                                </label>
+                            </div>
+                        ` : `
+                            <div class="small text-secondary">
+                                Note: ${data.total_copies - 1} other copy/copies exist on other agents. ${service} will remain until all copies are deleted.
+                            </div>
+                        `}
+                    </div>
+                `;
+            }
+
             detailsContainer.innerHTML = `
                 <div class="card bg-body-tertiary border p-3 my-2">
                     <p class="mb-1"><strong>Type:</strong> ${typeBadge}</p>
@@ -232,11 +272,12 @@ function setupDeleteModal(button) {
                     ${contentsInfo}
                     <p class="mb-0 text-danger small mt-2">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
-                            <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+                            <path d="M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 22,12A10,10 0 0,0 12,22A10,10 0 0,0 12,2Z"/>
                         </svg>
                         ${warningText}
                     </p>
                 </div>
+                ${mediaSection}
             `;
         } else {
             detailsContainer.innerHTML = `
@@ -277,9 +318,14 @@ function formatSizeKb(sizeKb) {
 }
 
 function performDelete(agentName, itemPath) {
+    const deleteFromArrCheck = document.getElementById('deleteFromArrCheck');
+    const addImportExclusionCheck = document.getElementById('addImportExclusionCheck');
+
     const deleteData = {
         agent_name: agentName,
-        item_path: itemPath
+        item_path: itemPath,
+        delete_from_arr: deleteFromArrCheck ? deleteFromArrCheck.checked : undefined,
+        add_import_exclusion: addImportExclusionCheck ? addImportExclusionCheck.checked : undefined
     };
 
     fetch('/components/delete', {
@@ -357,6 +403,14 @@ function updateBulkToolbarState() {
 function getSelectedAgentNames() {
     const checkedBoxes = document.querySelectorAll('.agent-select-checkbox:checked');
     return Array.from(checkedBoxes).map(cb => cb.getAttribute('data-agent-name'));
+}
+
+function getSelectedAgentsInfo() {
+    const checkedBoxes = document.querySelectorAll('.agent-select-checkbox:checked');
+    return Array.from(checkedBoxes).map(cb => ({
+        name: cb.getAttribute('data-agent-name'),
+        syncStatus: cb.getAttribute('data-sync-status') || ''
+    }));
 }
 
 function undoIgnore(agentName, itemPath) {
@@ -448,38 +502,136 @@ function performBulkIgnore() {
 }
 
 function setupBulkDeleteModal() {
-    const selectedAgents = getSelectedAgentNames();
+    const selectedAgentInfos = getSelectedAgentsInfo();
     const toolbar = document.getElementById('bulkActionsToolbar');
-    if (!toolbar || selectedAgents.length === 0) {
+    if (!toolbar || selectedAgentInfos.length === 0) {
         showToast('Please select at least one agent.', 'error');
         return;
     }
 
+    const agentsWithFile = selectedAgentInfos.filter(a => a.syncStatus !== 'Missing');
+    const missingAgents = selectedAgentInfos.filter(a => a.syncStatus === 'Missing');
+
     const itemName = toolbar.getAttribute('data-item-name');
     document.getElementById('bulkDeleteItemName').textContent = itemName;
-    document.getElementById('bulkDeleteAgentCount').textContent = selectedAgents.length;
+
+    const countText = missingAgents.length > 0
+        ? `${agentsWithFile.length} to delete (${missingAgents.length} skipped - absent)`
+        : `${selectedAgentInfos.length}`;
+    document.getElementById('bulkDeleteAgentCount').textContent = countText;
 
     const listContainer = document.getElementById('bulkDeleteAgentList');
-    listContainer.innerHTML = selectedAgents.map(name => `
-        <li class="list-group-item d-flex align-items-center">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-2 text-danger">
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-            </svg>
-            ${escapeHtml(name)}
-        </li>
-    `).join('');
+    listContainer.innerHTML = selectedAgentInfos.map(agent => {
+        if (agent.syncStatus === 'Missing') {
+            return `
+                <li class="list-group-item d-flex align-items-center justify-content-between text-muted bg-body-tertiary">
+                    <div class="d-flex align-items-center">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-2 text-secondary">
+                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                        </svg>
+                        <span>${escapeHtml(agent.name)}</span>
+                    </div>
+                    <span class="badge bg-secondary-subtle text-secondary border">Already absent (skipped)</span>
+                </li>
+            `;
+        } else {
+            return `
+                <li class="list-group-item d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="me-2 text-danger">
+                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                        </svg>
+                        <span class="fw-medium">${escapeHtml(agent.name)}</span>
+                    </div>
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Will delete</span>
+                </li>
+            `;
+        }
+    }).join('');
+
+    const itemPathRaw = toolbar.getAttribute('data-item-path');
+    const itemPath = itemPathRaw ? itemPathRaw.split(',') : [];
+
+    const targetAgentForDetails = agentsWithFile.length > 0 ? agentsWithFile[0].name : selectedAgentInfos[0].name;
+
+    const detailsContainer = document.getElementById('bulkDeleteItemDetails');
+    if (detailsContainer && selectedAgentInfos.length > 0) {
+        detailsContainer.innerHTML = `
+            <div class="d-flex align-items-center py-2 text-muted small">
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <span>Checking media integrations...</span>
+            </div>
+        `;
+
+        fetch('/components/delete-details', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                agent_name: targetAgentForDetails,
+                item_path: itemPath
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.matched_media) {
+                const service = escapeHtml(data.matched_media.service);
+                const title = escapeHtml(data.matched_media.title);
+                const details = escapeHtml(data.matched_media.details);
+                const defaultExcl = data.matched_media.default_exclusion;
+
+                detailsContainer.innerHTML = `
+                    <div class="card border-primary bg-primary-subtle p-3 my-2 text-start">
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="badge bg-primary me-2">${service}</span>
+                            <strong class="text-body">${title}</strong>
+                        </div>
+                        <div class="small text-secondary mb-2">${details}</div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="bulkDeleteFromArrCheck" checked>
+                            <label class="form-check-label small text-body" for="bulkDeleteFromArrCheck">
+                                Remove from ${service} if all copies deleted
+                            </label>
+                        </div>
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" id="bulkAddImportExclusionCheck" ${defaultExcl ? 'checked' : ''}>
+                            <label class="form-check-label small text-secondary" for="bulkAddImportExclusionCheck">
+                                Add to ${service} import exclusion list (prevent re-importing)
+                            </label>
+                        </div>
+                    </div>
+                `;
+            } else {
+                detailsContainer.innerHTML = '';
+            }
+        })
+        .catch(() => {
+            detailsContainer.innerHTML = '';
+        });
+    }
 
     const modal = new bootstrap.Modal(document.getElementById('bulkDeleteModal'));
     modal.show();
 }
 
 function performBulkDelete() {
-    const selectedAgents = getSelectedAgentNames();
+    const selectedAgentInfos = getSelectedAgentsInfo();
     const toolbar = document.getElementById('bulkActionsToolbar');
-    if (!toolbar || selectedAgents.length === 0) return;
+    if (!toolbar || selectedAgentInfos.length === 0) return;
+
+    const agentsWithFile = selectedAgentInfos.filter(a => a.syncStatus !== 'Missing');
+    const targetAgents = agentsWithFile.length > 0
+        ? agentsWithFile.map(a => a.name)
+        : selectedAgentInfos.map(a => a.name);
 
     const itemPathRaw = toolbar.getAttribute('data-item-path');
     const itemPath = itemPathRaw ? itemPathRaw.split(',') : [];
+
+    const bulkDeleteFromArrCheck = document.getElementById('bulkDeleteFromArrCheck');
+    const bulkAddImportExclusionCheck = document.getElementById('bulkAddImportExclusionCheck');
 
     fetch('/components/bulk-delete', {
         method: 'POST',
@@ -487,8 +639,10 @@ function performBulkDelete() {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            agent_names: selectedAgents,
-            item_path: itemPath
+            agent_names: targetAgents,
+            item_path: itemPath,
+            delete_from_arr: bulkDeleteFromArrCheck ? bulkDeleteFromArrCheck.checked : undefined,
+            add_import_exclusion: bulkAddImportExclusionCheck ? bulkAddImportExclusionCheck.checked : undefined
         })
     })
     .then(response => response.json())

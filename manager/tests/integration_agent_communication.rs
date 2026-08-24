@@ -163,6 +163,7 @@ async fn test_multi_agent_aggregation_success() {
             agent_timeout_seconds: 5,
             auth: AuthConfig::default(),
         },
+        integrations: IntegrationsConfig::default(),
         agents: vec![
             Agent {
                 name: "agent-1".to_string(),
@@ -205,6 +206,7 @@ async fn test_agent_partial_failure_handling() {
             agent_timeout_seconds: 5,
             auth: AuthConfig::default(),
         },
+        integrations: IntegrationsConfig::default(),
         agents: vec![
             Agent {
                 name: "good-agent".to_string(),

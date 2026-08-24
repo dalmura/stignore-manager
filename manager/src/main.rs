@@ -32,6 +32,12 @@ async fn main() {
     context.insert("version", env!("CARGO_PKG_VERSION"));
     context.insert("repo_url", "https://github.com/dalmura/stignore-manager");
 
+    let integrations =
+        std::sync::Arc::new(stignore_manager::integrations::IntegrationsManager::new(
+            &data.integrations,
+            data.manager.agent_timeout_seconds,
+        ));
+
     let app_state = AppState {
         engine: TeraEngine(tera),
         context,
@@ -40,6 +46,7 @@ async fn main() {
         disabled_agents: std::sync::Arc::new(std::sync::RwLock::new(
             std::collections::HashSet::new(),
         )),
+        integrations,
     };
 
     let app = create_app(app_state);
