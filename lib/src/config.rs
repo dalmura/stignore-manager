@@ -207,6 +207,106 @@ pub fn apply_manager_env_overrides(mut data: ManagerData) -> ManagerData {
         data.manager.auth.reader_role = reader_role;
     }
 
+    // Radarr environment overrides
+    if let Ok(url) = std::env::var("STIGNORE_RADARR_URL").or_else(|_| std::env::var("RADARR_URL")) {
+        let mut radarr = data.integrations.radarr.unwrap_or_default();
+        radarr.url = url;
+        radarr.enabled = true;
+        data.integrations.radarr = Some(radarr);
+    }
+
+    if let Ok(api_key) =
+        std::env::var("STIGNORE_RADARR_API_KEY").or_else(|_| std::env::var("RADARR_API_KEY"))
+    {
+        let mut radarr = data.integrations.radarr.unwrap_or_default();
+        radarr.api_key = api_key;
+        data.integrations.radarr = Some(radarr);
+    }
+
+    if let Ok(cat) =
+        std::env::var("STIGNORE_RADARR_CATEGORY").or_else(|_| std::env::var("RADARR_CATEGORY"))
+    {
+        let mut radarr = data.integrations.radarr.unwrap_or_default();
+        radarr.category_id = cat;
+        data.integrations.radarr = Some(radarr);
+    }
+
+    if let Ok(enabled_str) =
+        std::env::var("STIGNORE_RADARR_ENABLED").or_else(|_| std::env::var("RADARR_ENABLED"))
+        && let Some(enabled) = match enabled_str.to_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Some(true),
+            "0" | "false" | "no" | "off" => Some(false),
+            _ => None,
+        }
+    {
+        let mut radarr = data.integrations.radarr.unwrap_or_default();
+        radarr.enabled = enabled;
+        data.integrations.radarr = Some(radarr);
+    }
+
+    if let Ok(excl_str) = std::env::var("STIGNORE_RADARR_ADD_IMPORT_EXCLUSION")
+        .or_else(|_| std::env::var("RADARR_ADD_IMPORT_EXCLUSION"))
+        && let Some(excl) = match excl_str.to_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Some(true),
+            "0" | "false" | "no" | "off" => Some(false),
+            _ => None,
+        }
+    {
+        let mut radarr = data.integrations.radarr.unwrap_or_default();
+        radarr.add_import_exclusion = excl;
+        data.integrations.radarr = Some(radarr);
+    }
+
+    // Sonarr environment overrides
+    if let Ok(url) = std::env::var("STIGNORE_SONARR_URL").or_else(|_| std::env::var("SONARR_URL")) {
+        let mut sonarr = data.integrations.sonarr.unwrap_or_default();
+        sonarr.url = url;
+        sonarr.enabled = true;
+        data.integrations.sonarr = Some(sonarr);
+    }
+
+    if let Ok(api_key) =
+        std::env::var("STIGNORE_SONARR_API_KEY").or_else(|_| std::env::var("SONARR_API_KEY"))
+    {
+        let mut sonarr = data.integrations.sonarr.unwrap_or_default();
+        sonarr.api_key = api_key;
+        data.integrations.sonarr = Some(sonarr);
+    }
+
+    if let Ok(cat) =
+        std::env::var("STIGNORE_SONARR_CATEGORY").or_else(|_| std::env::var("SONARR_CATEGORY"))
+    {
+        let mut sonarr = data.integrations.sonarr.unwrap_or_default();
+        sonarr.category_id = cat;
+        data.integrations.sonarr = Some(sonarr);
+    }
+
+    if let Ok(enabled_str) =
+        std::env::var("STIGNORE_SONARR_ENABLED").or_else(|_| std::env::var("SONARR_ENABLED"))
+        && let Some(enabled) = match enabled_str.to_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Some(true),
+            "0" | "false" | "no" | "off" => Some(false),
+            _ => None,
+        }
+    {
+        let mut sonarr = data.integrations.sonarr.unwrap_or_default();
+        sonarr.enabled = enabled;
+        data.integrations.sonarr = Some(sonarr);
+    }
+
+    if let Ok(excl_str) = std::env::var("STIGNORE_SONARR_ADD_IMPORT_LIST_EXCLUSION")
+        .or_else(|_| std::env::var("SONARR_ADD_IMPORT_LIST_EXCLUSION"))
+        && let Some(excl) = match excl_str.to_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Some(true),
+            "0" | "false" | "no" | "off" => Some(false),
+            _ => None,
+        }
+    {
+        let mut sonarr = data.integrations.sonarr.unwrap_or_default();
+        sonarr.add_import_list_exclusion = excl;
+        data.integrations.sonarr = Some(sonarr);
+    }
+
     data
 }
 
@@ -229,7 +329,83 @@ pub fn load_agent_config(filename: &str) -> Result<AgentData, ConfigError> {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ManagerData {
     pub manager: ManagerConfig,
+    #[serde(default)]
+    pub integrations: IntegrationsConfig,
     pub agents: Vec<Agent>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+pub struct IntegrationsConfig {
+    #[serde(default)]
+    pub radarr: Option<RadarrConfig>,
+    #[serde(default)]
+    pub sonarr: Option<SonarrConfig>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct RadarrConfig {
+    #[serde(default = "default_integration_enabled")]
+    pub enabled: bool,
+    pub url: String,
+    pub api_key: String,
+    #[serde(default = "default_radarr_category")]
+    pub category_id: String,
+    #[serde(default)]
+    pub delete_files: bool,
+    #[serde(default)]
+    pub add_import_exclusion: bool,
+}
+
+impl Default for RadarrConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            url: String::new(),
+            api_key: String::new(),
+            category_id: default_radarr_category(),
+            delete_files: false,
+            add_import_exclusion: false,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct SonarrConfig {
+    #[serde(default = "default_integration_enabled")]
+    pub enabled: bool,
+    pub url: String,
+    pub api_key: String,
+    #[serde(default = "default_sonarr_category")]
+    pub category_id: String,
+    #[serde(default)]
+    pub delete_files: bool,
+    #[serde(default)]
+    pub add_import_list_exclusion: bool,
+}
+
+impl Default for SonarrConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            url: String::new(),
+            api_key: String::new(),
+            category_id: default_sonarr_category(),
+            delete_files: false,
+            add_import_list_exclusion: false,
+        }
+    }
+}
+
+fn default_integration_enabled() -> bool {
+    true
+}
+
+fn default_radarr_category() -> String {
+    "movies".to_string()
+}
+
+fn default_sonarr_category() -> String {
+    "tv".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -460,6 +636,7 @@ relative_path = "test/"
                 agent_timeout_seconds: 5,
                 auth: AuthConfig::default(),
             },
+            integrations: IntegrationsConfig::default(),
             agents: vec![],
         };
 
@@ -494,6 +671,106 @@ relative_path = "test/"
             std::env::remove_var("STIGNORE_AUTH_ROLE_HEADER");
             std::env::remove_var("STIGNORE_AUTH_ADMIN_ROLE");
             std::env::remove_var("STIGNORE_AUTH_READER_ROLE");
+        }
+    }
+
+    #[test]
+    fn test_manager_config_with_integrations_serde() {
+        let toml_str = r#"
+            [manager]
+            port = 8000
+            minimum_copies = 2
+
+            [integrations.radarr]
+            enabled = true
+            url = "http://localhost:7878"
+            api_key = "test-radarr-key"
+            category_id = "movies"
+            delete_files = false
+            add_import_exclusion = true
+
+            [integrations.sonarr]
+            enabled = true
+            url = "http://localhost:8989"
+            api_key = "test-sonarr-key"
+            category_id = "tv"
+            delete_files = false
+            add_import_list_exclusion = false
+
+            [[agents]]
+            name = "Agent 1"
+            hostname = "localhost:3000"
+            api_key = "550e8400-e29b-41d4-a716-446655440000"
+        "#;
+
+        let data: Result<ManagerData, toml::de::Error> = toml::from_str(toml_str);
+        assert!(data.is_ok());
+        let config = data.unwrap();
+
+        let radarr = config.integrations.radarr.unwrap();
+        assert!(radarr.enabled);
+        assert_eq!(radarr.url, "http://localhost:7878");
+        assert_eq!(radarr.api_key, "test-radarr-key");
+        assert_eq!(radarr.category_id, "movies");
+        assert!(radarr.add_import_exclusion);
+
+        let sonarr = config.integrations.sonarr.unwrap();
+        assert!(sonarr.enabled);
+        assert_eq!(sonarr.url, "http://localhost:8989");
+        assert_eq!(sonarr.api_key, "test-sonarr-key");
+        assert_eq!(sonarr.category_id, "tv");
+        assert!(!sonarr.add_import_list_exclusion);
+    }
+
+    #[test]
+    fn test_integrations_env_overrides() {
+        let base = ManagerData {
+            manager: ManagerConfig {
+                port: 8000,
+                minimum_copies: 2,
+                agent_timeout_seconds: 5,
+                auth: AuthConfig::default(),
+            },
+            integrations: IntegrationsConfig::default(),
+            agents: vec![],
+        };
+
+        unsafe {
+            std::env::set_var("STIGNORE_RADARR_URL", "http://radarr.local:7878");
+            std::env::set_var("STIGNORE_RADARR_API_KEY", "radarr-secret");
+            std::env::set_var("STIGNORE_RADARR_CATEGORY", "films");
+            std::env::set_var("STIGNORE_RADARR_ADD_IMPORT_EXCLUSION", "true");
+
+            std::env::set_var("STIGNORE_SONARR_URL", "http://sonarr.local:8989");
+            std::env::set_var("STIGNORE_SONARR_API_KEY", "sonarr-secret");
+            std::env::set_var("STIGNORE_SONARR_CATEGORY", "shows");
+            std::env::set_var("STIGNORE_SONARR_ADD_IMPORT_LIST_EXCLUSION", "true");
+        }
+
+        let overridden = apply_manager_env_overrides(base);
+
+        let radarr = overridden.integrations.radarr.unwrap();
+        assert_eq!(radarr.url, "http://radarr.local:7878");
+        assert_eq!(radarr.api_key, "radarr-secret");
+        assert_eq!(radarr.category_id, "films");
+        assert!(radarr.add_import_exclusion);
+
+        let sonarr = overridden.integrations.sonarr.unwrap();
+        assert_eq!(sonarr.url, "http://sonarr.local:8989");
+        assert_eq!(sonarr.api_key, "sonarr-secret");
+        assert_eq!(sonarr.category_id, "shows");
+        assert!(sonarr.add_import_list_exclusion);
+
+        unsafe {
+            std::env::remove_var("STIGNORE_RADARR_URL");
+            std::env::remove_var("STIGNORE_RADARR_API_KEY");
+            std::env::remove_var("STIGNORE_RADARR_CATEGORY");
+            std::env::remove_var("STIGNORE_RADARR_ADD_IMPORT_EXCLUSION");
+
+            std::env::remove_var("STIGNORE_SONARR_URL");
+            std::env::remove_var("STIGNORE_SONARR_API_KEY");
+            std::env::remove_var("STIGNORE_SONARR_CATEGORY");
+            std::env::remove_var("STIGNORE_SONARR_ADD_IMPORT_LIST_EXCLUSION");
         }
     }
 

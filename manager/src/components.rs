@@ -142,6 +142,10 @@ struct IgnoreItemRequest {
 struct DeleteItemRequest {
     agent_name: String,
     item_path: Vec<String>,
+    #[serde(default)]
+    delete_from_arr: Option<bool>,
+    #[serde(default)]
+    add_import_exclusion: Option<bool>,
 }
 
 #[derive(Serialize, Debug)]
@@ -154,6 +158,8 @@ struct IgnoreItemResponse {
 struct DeleteItemResponse {
     success: bool,
     message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    media_result: Option<crate::integrations::MediaDeleteResult>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -643,6 +649,7 @@ async fn delete_item(
             Json(DeleteItemResponse {
                 success: false,
                 message: "Access denied: Admin role required".to_string(),
+                media_result: None,
             }),
         )
             .into_response();
@@ -659,6 +666,7 @@ async fn delete_item(
             return Json(DeleteItemResponse {
                 success: false,
                 message: format!("Agent '{}' not found", payload.agent_name),
+                media_result: None,
             })
             .into_response();
         }
@@ -677,11 +685,11 @@ async fn delete_item(
         return Json(DeleteItemResponse {
             success: false,
             message: "No valid path provided".to_string(),
+            media_result: None,
         })
         .into_response();
     } else {
         let category_id = filtered_item_path[0].clone();
-        // Use remaining items from item_path for folder path (skip the first one which is the category)
         let folder_path = if filtered_item_path.len() > 1 {
             filtered_item_path[1..].to_vec()
         } else {
@@ -691,22 +699,96 @@ async fn delete_item(
         (category_id, folder_path)
     };
 
+    // Check how many agents currently hold this item before deletion
+    let disabled_agents = state.disabled_agents.read().unwrap().clone();
+    let item_path_refs: Vec<&str> = filtered_item_path.iter().map(AsRef::as_ref).collect();
+    let is_last_copy = match agents::item_info(
+        &state.agent_client,
+        state.config.agents.clone(),
+        item_path_refs,
+        &disabled_agents,
+    )
+    .await
+    {
+        Ok(info_resp) => {
+            let copies = info_resp
+                .agent_items
+                .iter()
+                .filter(|(_, it)| !it.id.is_empty() && (it.size_kb > 0 || !it.items.is_empty()))
+                .count();
+            copies <= 1
+        }
+        Err(_) => true,
+    };
+
     // Build the delete request for the agent
     let delete_request = AgentDeleteRequest {
-        category_id,
-        folder_path,
+        category_id: category_id.clone(),
+        folder_path: folder_path.clone(),
     };
 
     // Send the delete request to the agent
     match state.agent_client.delete_item(agent, &delete_request).await {
-        Ok(_) => Json(DeleteItemResponse {
-            success: true,
-            message: format!("Successfully deleted item on {}", agent.name),
-        })
-        .into_response(),
+        Ok(_) => {
+            let mut message = format!("Successfully deleted item on {}", agent.name);
+            let mut media_result = None;
+
+            let should_delete_arr = (is_last_copy || payload.delete_from_arr == Some(true))
+                && payload.delete_from_arr != Some(false);
+
+            if should_delete_arr
+                && let Some(media_res) = state
+                    .integrations
+                    .execute_media_deletion(
+                        &category_id,
+                        &folder_path,
+                        payload.add_import_exclusion,
+                    )
+                    .await
+            {
+                message = format!("{}. {}", message, media_res.message);
+                media_result = Some(media_res);
+            }
+
+            Json(DeleteItemResponse {
+                success: true,
+                message,
+                media_result,
+            })
+            .into_response()
+        }
+        Err(e) if e.is_not_found() => {
+            let mut message = format!("Item was already absent on {}", agent.name);
+            let mut media_result = None;
+
+            let should_delete_arr = (is_last_copy || payload.delete_from_arr == Some(true))
+                && payload.delete_from_arr != Some(false);
+
+            if should_delete_arr
+                && let Some(media_res) = state
+                    .integrations
+                    .execute_media_deletion(
+                        &category_id,
+                        &folder_path,
+                        payload.add_import_exclusion,
+                    )
+                    .await
+            {
+                message = format!("{}. {}", message, media_res.message);
+                media_result = Some(media_res);
+            }
+
+            Json(DeleteItemResponse {
+                success: true,
+                message,
+                media_result,
+            })
+            .into_response()
+        }
         Err(e) => Json(DeleteItemResponse {
             success: false,
             message: format!("Failed to delete item: {}", e),
+            media_result: None,
         })
         .into_response(),
     }
@@ -728,6 +810,12 @@ pub struct DeleteItemDetailsResponse {
     pub size_kb: u64,
     pub item_count: usize,
     pub agent_name: String,
+    #[serde(default)]
+    pub is_last_copy: bool,
+    #[serde(default)]
+    pub total_copies: u8,
+    #[serde(default)]
+    pub matched_media: Option<crate::integrations::MediaMatch>,
 }
 
 async fn delete_item_details(
@@ -747,6 +835,9 @@ async fn delete_item_details(
                 size_kb: 0,
                 item_count: 0,
                 agent_name: payload.agent_name,
+                is_last_copy: false,
+                total_copies: 0,
+                matched_media: None,
             }),
         )
             .into_response();
@@ -769,6 +860,9 @@ async fn delete_item_details(
                 size_kb: 0,
                 item_count: 0,
                 agent_name: payload.agent_name,
+                is_last_copy: false,
+                total_copies: 0,
+                matched_media: None,
             })
             .into_response();
         }
@@ -792,12 +886,48 @@ async fn delete_item_details(
             size_kb: 0,
             item_count: 0,
             agent_name: payload.agent_name,
+            is_last_copy: false,
+            total_copies: 0,
+            matched_media: None,
         })
         .into_response();
     }
 
+    let category_id = filtered_item_path[0].clone();
+    let folder_path = if filtered_item_path.len() > 1 {
+        filtered_item_path[1..].to_vec()
+    } else {
+        vec![]
+    };
+
     let request = AgentItemInfoRequest {
-        item_path: filtered_item_path,
+        item_path: filtered_item_path.clone(),
+    };
+
+    let matched_media = state
+        .integrations
+        .inspect_deletion(&category_id, &folder_path)
+        .await;
+
+    let disabled_agents = state.disabled_agents.read().unwrap().clone();
+    let item_path_refs: Vec<&str> = filtered_item_path.iter().map(AsRef::as_ref).collect();
+    let (total_copies, is_last_copy) = match agents::item_info(
+        &state.agent_client,
+        state.config.agents.clone(),
+        item_path_refs,
+        &disabled_agents,
+    )
+    .await
+    {
+        Ok(info_resp) => {
+            let copies = info_resp
+                .agent_items
+                .iter()
+                .filter(|(_, it)| !it.id.is_empty() && (it.size_kb > 0 || !it.items.is_empty()))
+                .count() as u8;
+            (copies, copies <= 1)
+        }
+        Err(_) => (1, true),
     };
 
     match state.agent_client.get_item_info(agent, &request).await {
@@ -812,6 +942,9 @@ async fn delete_item_details(
                 size_kb: resp.item.size_kb,
                 item_count: resp.item.items.len(),
                 agent_name: agent.name.clone(),
+                is_last_copy,
+                total_copies,
+                matched_media,
             })
             .into_response()
         }
@@ -824,6 +957,9 @@ async fn delete_item_details(
             size_kb: 0,
             item_count: 0,
             agent_name: payload.agent_name,
+            is_last_copy,
+            total_copies,
+            matched_media,
         })
         .into_response(),
     }
@@ -839,6 +975,10 @@ pub struct BulkIgnoreRequest {
 pub struct BulkDeleteRequest {
     pub agent_names: Vec<String>,
     pub item_path: Vec<String>,
+    #[serde(default)]
+    pub delete_from_arr: Option<bool>,
+    #[serde(default)]
+    pub add_import_exclusion: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -853,6 +993,8 @@ pub struct BulkActionResponse {
     pub success: bool,
     pub message: String,
     pub results: Vec<BulkActionResult>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media_result: Option<crate::integrations::MediaDeleteResult>,
 }
 
 async fn bulk_ignore_item(
@@ -867,6 +1009,7 @@ async fn bulk_ignore_item(
                 success: false,
                 message: "Access denied: Admin role required".to_string(),
                 results: vec![],
+                media_result: None,
             }),
         )
             .into_response();
@@ -883,6 +1026,7 @@ async fn bulk_ignore_item(
             success: false,
             message: "No valid path provided".to_string(),
             results: vec![],
+            media_result: None,
         })
         .into_response();
     }
@@ -937,6 +1081,7 @@ async fn bulk_ignore_item(
             "Bulk ignore completed with errors".to_string()
         },
         results,
+        media_result: None,
     })
     .into_response()
 }
@@ -953,6 +1098,7 @@ async fn bulk_unignore_item(
                 success: false,
                 message: "Access denied: Admin role required".to_string(),
                 results: vec![],
+                media_result: None,
             }),
         )
             .into_response();
@@ -969,6 +1115,7 @@ async fn bulk_unignore_item(
             success: false,
             message: "No valid path provided".to_string(),
             results: vec![],
+            media_result: None,
         })
         .into_response();
     }
@@ -1030,6 +1177,7 @@ async fn bulk_unignore_item(
             "Bulk un-ignore completed with errors".to_string()
         },
         results,
+        media_result: None,
     })
     .into_response()
 }
@@ -1046,6 +1194,7 @@ async fn bulk_delete_item(
                 success: false,
                 message: "Access denied: Admin role required".to_string(),
                 results: vec![],
+                media_result: None,
             }),
         )
             .into_response();
@@ -1062,6 +1211,7 @@ async fn bulk_delete_item(
             success: false,
             message: "No valid path provided".to_string(),
             results: vec![],
+            media_result: None,
         })
         .into_response();
     }
@@ -1074,21 +1224,53 @@ async fn bulk_delete_item(
     };
 
     let delete_request = AgentDeleteRequest {
-        category_id,
-        folder_path,
+        category_id: category_id.clone(),
+        folder_path: folder_path.clone(),
     };
 
     let mut results = Vec::new();
     let mut overall_success = true;
+    let mut successful_deletions = HashSet::new();
+
+    // Check which agents currently hold this item before deletion
+    let disabled_agents = state.disabled_agents.read().unwrap().clone();
+    let item_path_refs: Vec<&str> = filtered_item_path.iter().map(AsRef::as_ref).collect();
+    let holding_agent_names: HashSet<String> = match agents::item_info(
+        &state.agent_client,
+        state.config.agents.clone(),
+        item_path_refs,
+        &disabled_agents,
+    )
+    .await
+    {
+        Ok(info_resp) => info_resp
+            .agent_items
+            .iter()
+            .filter(|(_, it)| !it.id.is_empty() && (it.size_kb > 0 || !it.items.is_empty()))
+            .map(|(a, _)| a.name.clone())
+            .collect(),
+        Err(_) => payload.agent_names.iter().cloned().collect(),
+    };
 
     for agent_name in &payload.agent_names {
         if let Some(agent) = state.config.agents.iter().find(|a| &a.name == agent_name) {
             match state.agent_client.delete_item(agent, &delete_request).await {
-                Ok(_) => results.push(BulkActionResult {
-                    agent_name: agent_name.clone(),
-                    success: true,
-                    message: format!("Deleted item on {}", agent_name),
-                }),
+                Ok(_) => {
+                    successful_deletions.insert(agent_name.clone());
+                    results.push(BulkActionResult {
+                        agent_name: agent_name.clone(),
+                        success: true,
+                        message: format!("Deleted item on {}", agent_name),
+                    });
+                }
+                Err(e) if e.is_not_found() => {
+                    successful_deletions.insert(agent_name.clone());
+                    results.push(BulkActionResult {
+                        agent_name: agent_name.clone(),
+                        success: true,
+                        message: format!("Item was already absent on {} (skipped)", agent_name),
+                    });
+                }
                 Err(e) => {
                     overall_success = false;
                     results.push(BulkActionResult {
@@ -1108,14 +1290,40 @@ async fn bulk_delete_item(
         }
     }
 
+    // Check if all agents that held the item succeeded in deleting
+    let all_copies_deleted = !holding_agent_names.is_empty()
+        && holding_agent_names
+            .iter()
+            .all(|name| successful_deletions.contains(name));
+
+    let should_delete_arr = (all_copies_deleted || payload.delete_from_arr == Some(true))
+        && payload.delete_from_arr != Some(false);
+
+    let mut media_result = None;
+    let mut extra_message = String::new();
+
+    if should_delete_arr
+        && !successful_deletions.is_empty()
+        && let Some(media_res) = state
+            .integrations
+            .execute_media_deletion(&category_id, &folder_path, payload.add_import_exclusion)
+            .await
+    {
+        extra_message = format!(" {}", media_res.message);
+        media_result = Some(media_res);
+    }
+
+    let base_message = if overall_success {
+        format!("Successfully deleted item across {} agents.", results.len())
+    } else {
+        "Bulk delete completed with errors.".to_string()
+    };
+
     Json(BulkActionResponse {
         success: overall_success,
-        message: if overall_success {
-            format!("Successfully deleted item across {} agents", results.len())
-        } else {
-            "Bulk delete completed with errors".to_string()
-        },
+        message: format!("{}{}", base_message, extra_message),
         results,
+        media_result,
     })
     .into_response()
 }

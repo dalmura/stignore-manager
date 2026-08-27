@@ -3,6 +3,7 @@ pub mod agents;
 pub mod auth;
 pub mod components;
 pub mod config;
+pub mod integrations;
 pub mod pages;
 
 use axum::extract::FromRef;
@@ -86,6 +87,7 @@ pub struct AppState {
     pub config: stignore_lib::ManagerData,
     pub agent_client: agent_client::AgentClient,
     pub disabled_agents: std::sync::Arc<std::sync::RwLock<std::collections::HashSet<String>>>,
+    pub integrations: std::sync::Arc<integrations::IntegrationsManager>,
 }
 
 pub fn humansize_filter(
