@@ -155,6 +155,17 @@ pub async fn setup_mock_agent_server() -> MockServer {
         .mount(&mock_server)
         .await;
 
+    // Mock unignore endpoint
+    Mock::given(method("POST"))
+        .and(path("/api/v1/unignore"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "success": true,
+            "message": "Item unignored successfully"
+        })))
+        .mount(&mock_server)
+        .await;
+
     mock_server
 }
 

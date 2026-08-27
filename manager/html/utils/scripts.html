@@ -177,6 +177,50 @@ function setupIgnoreModal(button) {
     };
 }
 
+function setupUnignoreModal(button) {
+    const agentName = button.getAttribute('data-agent-name');
+    const itemPathRaw = button.getAttribute('data-item-path');
+    const itemName = button.getAttribute('data-item-name');
+    const itemPath = itemPathRaw ? itemPathRaw.split(',') : [];
+
+    document.getElementById('unignoreAgentName').textContent = agentName;
+    document.getElementById('unignoreItemName').textContent = itemName;
+
+    const confirmBtn = document.getElementById('confirmUnignoreBtn');
+    confirmBtn.onclick = function() {
+        const modalEl = document.getElementById('unignoreModal');
+        const bsModal = bootstrap.Modal.getInstance(modalEl);
+        if (bsModal) bsModal.hide();
+
+        fetch('/components/unignore', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                agent_name: agentName,
+                item_path: itemPath
+            })
+        })
+        .then(res => res.json())
+        .then(response => {
+            if (response.success) {
+                showToast(`Item unignored on ${escapeHtml(agentName)}`, 'success', {
+                    actionText: 'Undo',
+                    onAction: () => undoUnignore(agentName, itemPath)
+                });
+                refreshItemData();
+            } else {
+                showToast(response.message || 'Failed to unignore item', 'error');
+            }
+        })
+        .catch(err => {
+            showToast('Failed to connect to server to unignore item.', 'error');
+            console.error('Unignore request failed:', err);
+        });
+    };
+}
+
 function setupDeleteModal(button) {
     const agentName = button.getAttribute('data-agent-name');
     const itemPath = button.getAttribute('data-item-path').split(',');
@@ -425,7 +469,7 @@ function undoIgnore(agentName, itemPath) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showToast(`Un-ignored item on ${escapeHtml(agentName)}`, 'success');
+            showToast(`Unignored item on ${escapeHtml(agentName)}`, 'success');
             refreshItemData();
         } else {
             showToast(`Undo failed: ${data.message}`, 'error');
@@ -434,6 +478,30 @@ function undoIgnore(agentName, itemPath) {
     .catch(error => {
         showToast('Failed to connect to server to undo ignore.', 'error');
         console.error('Undo ignore failed:', error);
+    });
+}
+
+function undoUnignore(agentName, itemPath) {
+    fetch('/components/ignore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            agent_name: agentName,
+            item_path: itemPath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(`Ignored item on ${escapeHtml(agentName)}`, 'success');
+            refreshItemData();
+        } else {
+            showToast(`Undo failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Failed to connect to server to undo unignore.', 'error');
+        console.error('Undo unignore failed:', error);
     });
 }
 
@@ -449,7 +517,7 @@ function undoBulkIgnore(agentNames, itemPath) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showToast(data.message || 'Un-ignored item across selected agents', 'success');
+            showToast(data.message || 'Unignored item across selected agents', 'success');
             refreshItemData();
         } else {
             showToast(data.message || 'Undo bulk ignore failed on some agents', 'error');
@@ -458,6 +526,30 @@ function undoBulkIgnore(agentNames, itemPath) {
     .catch(error => {
         showToast('Failed to connect to server for bulk undo.', 'error');
         console.error('Bulk undo ignore failed:', error);
+    });
+}
+
+function undoBulkUnignore(agentNames, itemPath) {
+    fetch('/components/bulk-ignore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            agent_names: agentNames,
+            item_path: itemPath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message || 'Ignored item across selected agents', 'success');
+            refreshItemData();
+        } else {
+            showToast(data.message || 'Undo bulk unignore failed on some agents', 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Failed to connect to server for bulk undo.', 'error');
+        console.error('Bulk undo unignore failed:', error);
     });
 }
 
@@ -498,6 +590,46 @@ function performBulkIgnore() {
     .catch(error => {
         showToast('Failed to connect to server for bulk ignore.', 'error');
         console.error('Bulk ignore failed:', error);
+    });
+}
+
+function performBulkUnignore() {
+    const selectedAgents = getSelectedAgentNames();
+    const toolbar = document.getElementById('bulkActionsToolbar');
+    if (!toolbar || selectedAgents.length === 0) {
+        showToast('Please select at least one agent.', 'error');
+        return;
+    }
+
+    const itemPathRaw = toolbar.getAttribute('data-item-path');
+    const itemPath = itemPathRaw ? itemPathRaw.split(',') : [];
+
+    fetch('/components/bulk-unignore', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            agent_names: selectedAgents,
+            item_path: itemPath
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message || 'Bulk unignore completed successfully', 'success', {
+                actionText: 'Undo',
+                onAction: () => undoBulkUnignore(selectedAgents, itemPath)
+            });
+            refreshItemData();
+        } else {
+            showToast(data.message || 'Bulk unignore failed on some agents', 'error');
+            refreshItemData();
+        }
+    })
+    .catch(error => {
+        showToast('Failed to connect to server for bulk unignore.', 'error');
+        console.error('Bulk unignore failed:', error);
     });
 }
 

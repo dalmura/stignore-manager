@@ -60,6 +60,45 @@ async fn test_infopanel_post_request() {
 
     response.assert_status_ok();
     response.assert_text_contains("card-header"); // Check for the info panel structure
+    response.assert_text_contains("Unignore Selected");
+}
+
+#[tokio::test]
+async fn test_infopanel_with_ignored_item_renders_unignore_button() {
+    let mock_server = setup_mock_agent_server().await;
+
+    // Mock bulk ignore status endpoint returning ignored: true
+    Mock::given(method("POST"))
+        .and(path("/api/v1/ignore-status-bulk"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "items": [
+                {
+                    "ignored": true
+                }
+            ]
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let request_body = json!({
+        "category_id": "Movies",
+        "item_path": ["Movies", "Action", "movie.mkv"]
+    });
+
+    let response = server
+        .post("/components/infopanel.html")
+        .json(&request_body)
+        .await;
+
+    response.assert_status_ok();
+    response.assert_text_contains("Unignore");
+    response.assert_text_contains("setupUnignoreModal(this)");
+    response.assert_text_contains("unignore-btn-test-agent-1");
 }
 
 #[tokio::test]

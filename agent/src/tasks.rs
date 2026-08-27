@@ -949,6 +949,104 @@ mod tests {
         assert!(content.contains("Non-existent Movie (2025)"));
     }
 
+    // Unignore endpoint tests
+    #[tokio::test]
+    async fn test_post_unignore_success() {
+        let (server, temp_dir) = setup_test_server().await;
+
+        // Pre-create .stignore file with movie directories
+        let stignore_path = temp_dir.path().join("movies").join(".stignore");
+        std::fs::write(&stignore_path, "Movie 1 (2023)\nMovie 2 (2024)\n").unwrap();
+
+        let request_body = IgnoreRequest {
+            category_id: MOVIES_ID.to_string(),
+            folder_path: vec!["Movie 1 (2023)".to_string()],
+        };
+
+        let response = server
+            .post("/api/v1/unignore")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&request_body)
+            .await;
+        response.assert_status(StatusCode::OK);
+
+        let json: IgnoreResponse = response.json();
+        assert!(json.success);
+        assert!(json.ignored_path.is_some());
+        assert!(json.message.contains("Successfully removed"));
+
+        // Verify .stignore file was updated and Movie 1 is removed, but Movie 2 remains
+        let content = std::fs::read_to_string(&stignore_path).unwrap();
+        assert!(!content.contains("Movie 1 (2023)"));
+        assert!(content.contains("Movie 2 (2024)"));
+    }
+
+    #[tokio::test]
+    async fn test_post_unignore_not_ignored() {
+        let (server, _temp_dir) = setup_test_server().await;
+
+        let request_body = IgnoreRequest {
+            category_id: MOVIES_ID.to_string(),
+            folder_path: vec!["Movie 1 (2023)".to_string()],
+        };
+
+        let response = server
+            .post("/api/v1/unignore")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&request_body)
+            .await;
+        response.assert_status(StatusCode::OK);
+
+        let json: IgnoreResponse = response.json();
+        assert!(json.success);
+        assert!(json.message.contains("not present in .stignore"));
+    }
+
+    #[tokio::test]
+    async fn test_post_unignore_empty_path() {
+        let (server, _temp_dir) = setup_test_server().await;
+
+        let request_body = IgnoreRequest {
+            category_id: MOVIES_ID.to_string(),
+            folder_path: vec![],
+        };
+
+        let response = server
+            .post("/api/v1/unignore")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&request_body)
+            .await;
+        response.assert_status(StatusCode::BAD_REQUEST);
+
+        let json: IgnoreResponse = response.json();
+        assert!(!json.success);
+        assert!(json.message.contains("Folder path cannot be empty"));
+    }
+
+    #[tokio::test]
+    async fn test_post_unignore_invalid_category() {
+        let (server, _temp_dir) = setup_test_server().await;
+
+        let request_body = IgnoreRequest {
+            category_id: NONEXISTENT_ID.to_string(),
+            folder_path: vec!["Some Movie".to_string()],
+        };
+
+        let response = server
+            .post("/api/v1/unignore")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&request_body)
+            .await;
+        response.assert_status(StatusCode::BAD_REQUEST);
+
+        let json: IgnoreResponse = response.json();
+        assert!(!json.success);
+        assert!(
+            json.message
+                .contains("Category ID 'nonexistent_id' not found")
+        );
+    }
+
     // Ignore status endpoint tests
     #[tokio::test]
     async fn test_post_ignore_status_not_ignored() {

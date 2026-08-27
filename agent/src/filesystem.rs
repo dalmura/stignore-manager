@@ -416,6 +416,17 @@ fn remove_from_stignore_str(
         }
     };
 
+    let was_present = ignore_content
+        .lines()
+        .any(|line| line.trim() == folder_path);
+
+    if !was_present {
+        return StignoreResult::Success {
+            ignored_path: folder_path.to_string(),
+            message: format!("Path '{}' was not present in .stignore", folder_path),
+        };
+    }
+
     let remaining_lines: Vec<&str> = ignore_content
         .lines()
         .filter(|line| line.trim() != folder_path)

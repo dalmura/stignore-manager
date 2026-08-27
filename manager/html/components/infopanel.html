@@ -33,6 +33,12 @@
                         </svg>
                         Ignore Selected
                     </button>
+                    <button class="btn btn-success btn-sm d-flex align-items-center" {% if auth_enabled and not is_admin %}disabled title="Admin role required"{% else %}onclick="performBulkUnignore()"{% endif %}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                        </svg>
+                        Unignore Selected
+                    </button>
                     <button class="btn btn-danger btn-sm d-flex align-items-center" {% if auth_enabled and not is_admin %}disabled title="Admin role required"{% else %}onclick="setupBulkDeleteModal()"{% endif %}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
                             <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
@@ -129,11 +135,20 @@
                         {% endif %}
                         <div class="d-flex gap-2">
                             {% if i.ignored %}
-                            <button class="btn btn-success btn-sm d-flex align-items-center" disabled>
+                            <button class="btn btn-success btn-sm d-flex align-items-center"
+                                    id="unignore-btn-{{ i.agent.name | replace(from=' ', to='-') | lower }}"
+                                    {% if auth_enabled and not is_admin %}disabled title="Admin role required"{% else %}
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#unignoreModal"
+                                    data-agent-name="{{ i.agent.name }}"
+                                    data-item-path="{{ item_path | join(sep=',') }}"
+                                    data-item-name="{{ parent_names | join(sep=' / ') }}"
+                                    onclick="setupUnignoreModal(this)"
+                                    {% endif %}>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" class="me-1">
                                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                                 </svg>
-                                Ignored
+                                Unignore
                             </button>
                             {% else %}
                             <button class="btn btn-warning btn-sm d-flex align-items-center"

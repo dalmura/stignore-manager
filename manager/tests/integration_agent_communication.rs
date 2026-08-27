@@ -53,6 +53,21 @@ async fn test_agent_ignore_item_success() {
 }
 
 #[tokio::test]
+async fn test_agent_unignore_item_success() {
+    let mock_server = setup_mock_agent_server().await;
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let client = stignore_manager::agent_client::AgentClient::with_timeout(5);
+
+    let request = AgentUnignoreRequest {
+        category_id: "Movies".to_string(),
+        folder_path: vec!["Action".to_string(), "movie.mkv".to_string()],
+    };
+
+    let result = client.unignore_item(&config.agents[0], &request).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
 async fn test_agent_timeout_handling() {
     let mock_server = MockServer::start().await;
 

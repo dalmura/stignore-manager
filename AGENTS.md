@@ -30,6 +30,7 @@ This is a **Rust workspace** containing three complementary crates:
 - `GET /api/v1/categories` - List configured categories
 - `POST /api/v1/items` - Get item information by path
 - `POST /api/v1/ignore` - Add items to `.stignore` files
+- `POST /api/v1/unignore` - Remove items from `.stignore` files
 
 ### manager/
 **Purpose**: Web-based aggregation service that manages multiple agents and provides a unified interface
