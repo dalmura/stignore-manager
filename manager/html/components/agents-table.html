@@ -58,7 +58,7 @@
                         <div class="d-flex flex-wrap gap-1">
                             {% for category in agent.categories %}
                                 <span class="badge status-badge-primary d-inline-flex align-items-center gap-1" title="{{ category.size_kb | humansize }}, {{ category.item_count }} items{% if category.stversions_size_kb > 0 %}, archive: {{ category.stversions_size_kb | humansize }}{% endif %}{% if not category.stfolder_present %}, missing .stfolder{% endif %}">
-                                    {{ category.name }}
+                                    <span>{{ category.name }}</span>
                                     {% if category.is_syncing %}
                                     <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="width: 0.55rem; height: 0.55rem;" title="Syncing"></span>
                                     {% endif %}
@@ -68,6 +68,13 @@
                                     {% if not category.stfolder_present %}
                                     <span class="text-danger fw-bold" title="Missing .stfolder marker">✗</span>
                                     {% endif %}
+                                    <button type="button" class="btn btn-link p-0 text-white opacity-75 hover-opacity-100 ms-1 d-inline-flex align-items-center"
+                                            title="Edit .stignore file for '{{ category.name }}' on '{{ agent.name }}'"
+                                            onclick="openStignoreModal('{{ agent.name }}', '{{ category.id }}')">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                                        </svg>
+                                    </button>
                                 </span>
                             {% endfor %}
                         </div>

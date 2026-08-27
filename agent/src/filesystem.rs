@@ -354,8 +354,11 @@ fn add_to_stignore_str(
     ignore_content.push_str(folder_path);
     ignore_content.push('\n');
 
-    // Write back to .stignore
-    match std::fs::write(&stignore_path, &ignore_content) {
+    // Create timestamped backup before modifying .stignore
+    create_stignore_backup(category_base_path);
+
+    // Write back to .stignore atomically
+    match write_stignore_atomic(category_base_path, &ignore_content) {
         Ok(_) => {
             tracing::info!(
                 "Successfully added '{}' to .stignore in category '{}'",
@@ -438,7 +441,10 @@ fn remove_from_stignore_str(
         format!("{}\n", remaining_lines.join("\n"))
     };
 
-    match std::fs::write(&stignore_path, &new_content) {
+    // Create timestamped backup before modifying .stignore
+    create_stignore_backup(category_base_path);
+
+    match write_stignore_atomic(category_base_path, &new_content) {
         Ok(_) => StignoreResult::Success {
             ignored_path: folder_path.to_string(),
             message: format!(
@@ -496,4 +502,237 @@ pub fn delete_from_filesystem(
             message: format!("Failed to delete '{}': {}", normalized_folder_path, err),
         },
     }
+}
+
+/// Lists all available .stignore backup files for a category
+pub fn list_stignore_backups(
+    category_base_path: &std::path::Path,
+) -> Vec<stignore_lib::StignoreBackupInfo> {
+    let mut backups = Vec::new();
+
+    if let Ok(entries) = std::fs::read_dir(category_base_path) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let filename = entry.file_name().to_string_lossy().to_string();
+            if let Some(ts_str) = filename.strip_prefix(".stignore.bak.") {
+                let metadata = entry.metadata().ok();
+                let size_bytes = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
+
+                let timestamp = ts_str.parse::<u64>().unwrap_or_else(|_| {
+                    metadata
+                        .and_then(|m| m.modified().ok())
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0)
+                });
+
+                let content =
+                    std::fs::read_to_string(category_base_path.join(&filename)).unwrap_or_default();
+
+                backups.push(stignore_lib::StignoreBackupInfo {
+                    filename,
+                    timestamp,
+                    size_bytes,
+                    content,
+                });
+            }
+        }
+    }
+
+    // Sort descending by timestamp (newest first)
+    backups.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
+    backups
+}
+
+/// Prunes old backups keeping at most `max_keep` files
+pub fn prune_old_backups(category_base_path: &std::path::Path, max_keep: usize) {
+    let mut backups = list_stignore_backups(category_base_path);
+    if backups.len() > max_keep {
+        for old in backups.drain(max_keep..) {
+            let _ = std::fs::remove_file(category_base_path.join(&old.filename));
+        }
+    }
+}
+
+/// Reads the entire .stignore content, current hash, and available backups
+pub fn get_stignore_full(
+    category_base_path: &std::path::Path,
+) -> Result<(String, String, bool, Vec<stignore_lib::StignoreBackupInfo>), String> {
+    let stignore_path = category_base_path.join(".stignore");
+    let (content, exists) = if stignore_path.exists() {
+        match std::fs::read_to_string(&stignore_path) {
+            Ok(c) => (c, true),
+            Err(e) => return Err(format!("Failed to read .stignore: {}", e)),
+        }
+    } else {
+        (String::new(), false)
+    };
+
+    let hash = stignore_lib::compute_content_hash(&content);
+    let backups = list_stignore_backups(category_base_path);
+
+    Ok((content, hash, exists, backups))
+}
+
+/// Creates a timestamped backup before modifying .stignore and prunes older backups
+pub fn create_stignore_backup(category_base_path: &std::path::Path) -> Option<String> {
+    let stignore_path = category_base_path.join(".stignore");
+    if stignore_path.exists() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let backup_name = format!(".stignore.bak.{}", now);
+        let backup_path = category_base_path.join(&backup_name);
+
+        if let Err(e) = std::fs::copy(&stignore_path, &backup_path) {
+            tracing::warn!(
+                "Failed to create timestamped backup at {:?}: {}",
+                backup_path,
+                e
+            );
+            None
+        } else {
+            prune_old_backups(category_base_path, 10);
+            Some(backup_name)
+        }
+    } else {
+        None
+    }
+}
+
+/// Atomically writes content to .stignore using a temporary file and rename
+pub fn write_stignore_atomic(
+    category_base_path: &std::path::Path,
+    content: &str,
+) -> Result<(), String> {
+    let stignore_path = category_base_path.join(".stignore");
+    let tmp_name = format!(
+        ".stignore.tmp.{}.{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    );
+    let tmp_path = category_base_path.join(tmp_name);
+
+    if let Err(e) = std::fs::write(&tmp_path, content) {
+        return Err(format!("Failed to write temporary .stignore file: {}", e));
+    }
+
+    if let Err(e) = std::fs::rename(&tmp_path, &stignore_path) {
+        let _ = std::fs::remove_file(&tmp_path);
+        return Err(format!("Failed to atomically replace .stignore: {}", e));
+    }
+
+    Ok(())
+}
+
+/// Saves the full .stignore file with optimistic locking check, backup creation, and atomic file write
+pub fn set_stignore_full(
+    category_base_path: &std::path::Path,
+    content: &str,
+    expected_hash: Option<&str>,
+    category_name: &str,
+) -> Result<(String, Option<String>), String> {
+    let stignore_path = category_base_path.join(".stignore");
+
+    // Check optimistic concurrency if file exists
+    let mut backup_created = None;
+    if stignore_path.exists() {
+        let existing_content = match std::fs::read_to_string(&stignore_path) {
+            Ok(c) => c,
+            Err(e) => return Err(format!("Failed to read existing .stignore: {}", e)),
+        };
+
+        let current_hash = stignore_lib::compute_content_hash(&existing_content);
+        if let Some(exp) = expected_hash
+            && exp != current_hash
+        {
+            return Err(format!(
+                "Conflict: .stignore in category '{}' was modified on disk (current hash: {}, expected: {}). Please reload before saving.",
+                category_name, current_hash, exp
+            ));
+        }
+
+        // Only create backup if content is actually changing
+        if existing_content.trim() != content.trim() {
+            backup_created = create_stignore_backup(category_base_path);
+        }
+    }
+
+    // Ensure normalized trailing newline
+    let mut normalized_content = content.to_string();
+    if !normalized_content.is_empty() && !normalized_content.ends_with('\n') {
+        normalized_content.push('\n');
+    }
+
+    write_stignore_atomic(category_base_path, &normalized_content)?;
+
+    let new_hash = stignore_lib::compute_content_hash(&normalized_content);
+    Ok((new_hash, backup_created))
+}
+
+/// Restores an .stignore file from a specific backup
+pub fn restore_stignore_backup(
+    category_base_path: &std::path::Path,
+    backup_filename: &str,
+    category_name: &str,
+) -> Result<(String, String), String> {
+    // Security check: validate filename doesn't contain path traversal
+    if backup_filename.contains('/')
+        || backup_filename.contains('\\')
+        || backup_filename.contains("..")
+        || !backup_filename.starts_with(".stignore.bak")
+    {
+        return Err("Invalid backup filename".to_string());
+    }
+
+    let backup_path = category_base_path.join(backup_filename);
+    if !backup_path.exists() {
+        return Err(format!("Backup file '{}' not found", backup_filename));
+    }
+
+    let backup_content = match std::fs::read_to_string(&backup_path) {
+        Ok(c) => c,
+        Err(e) => return Err(format!("Failed to read backup file: {}", e)),
+    };
+
+    let stignore_path = category_base_path.join(".stignore");
+
+    // Create a safety backup of the current file before restoring
+    if stignore_path.exists() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let pre_restore_backup = format!(".stignore.bak.pre_restore.{}", now);
+        let _ = std::fs::copy(&stignore_path, category_base_path.join(pre_restore_backup));
+    }
+
+    // Atomic write
+    let tmp_name = format!(
+        ".stignore.tmp.restore.{}.{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    );
+    let tmp_path = category_base_path.join(tmp_name);
+
+    if let Err(e) = std::fs::write(&tmp_path, &backup_content) {
+        return Err(format!("Failed to write temporary restore file: {}", e));
+    }
+
+    if let Err(e) = std::fs::rename(&tmp_path, &stignore_path) {
+        let _ = std::fs::remove_file(&tmp_path);
+        return Err(format!(
+            "Failed to atomically restore .stignore in '{}': {}",
+            category_name, e
+        ));
+    }
+
+    let new_hash = stignore_lib::compute_content_hash(&backup_content);
+    Ok((backup_content, new_hash))
 }

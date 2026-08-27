@@ -933,3 +933,220 @@ async fn test_agent_status_pill_endpoint_with_disabled_agent() {
     response.assert_text_contains("1/1 Online");
     response.assert_text_contains("1 disabled");
 }
+
+#[tokio::test]
+async fn test_stignore_modal_endpoint_success() {
+    let mock_server = MockServer::start().await;
+    let stignore_resp = AgentGetStignoreResponse {
+        content: "// Test ignore\n(?d).DS_Store\nMovie 1 (2023)/\n".to_string(),
+        hash: "a1b2c3d4e5f67890".to_string(),
+        exists: true,
+        backups: vec![StignoreBackupInfo {
+            filename: ".stignore.bak.1700000000".to_string(),
+            timestamp: 1700000000,
+            size_bytes: 42,
+            content: "(?d).DS_Store\n".to_string(),
+        }],
+    };
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/stignore/get"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&stignore_resp))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let req_body = json!({
+        "agent_name": "test-agent-1",
+        "category_id": "movies"
+    });
+
+    let response = server
+        .post("/components/stignore-modal.html")
+        .json(&req_body)
+        .await;
+    response.assert_status_ok();
+    response.assert_text_contains("stignoreTextarea");
+    response.assert_text_contains("(?d).DS_Store");
+    response.assert_text_contains("#a1b2c3d4e5f67890");
+    response.assert_text_contains(".stignore.bak.1700000000");
+    response.assert_text_contains("Valid Syntax");
+}
+
+#[tokio::test]
+async fn test_stignore_modal_endpoint_invalid_agent() {
+    let config = create_test_config();
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let req_body = json!({
+        "agent_name": "Nonexistent Agent",
+        "category_id": "movies"
+    });
+
+    let response = server
+        .post("/components/stignore-modal.html")
+        .json(&req_body)
+        .await;
+    response.assert_status_ok();
+    response.assert_text_contains("Nonexistent Agent");
+}
+
+#[tokio::test]
+async fn test_stignore_save_endpoint_success() {
+    let mock_server = MockServer::start().await;
+    let save_resp = AgentSetStignoreResponse {
+        success: true,
+        message: "Successfully updated .stignore in 'Movies'".to_string(),
+        new_hash: "fedcba9876543210".to_string(),
+        backup_created: Some(".stignore.bak.1700000001".to_string()),
+    };
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/stignore/set"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&save_resp))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let req_body = json!({
+        "agent_name": "test-agent-1",
+        "category_id": "movies",
+        "content": "// Updated rules\n(?d).DS_Store\n",
+        "expected_hash": "a1b2c3d4e5f67890"
+    });
+
+    let response = server
+        .post("/components/stignore/save")
+        .json(&req_body)
+        .await;
+    response.assert_status_ok();
+    let json: serde_json::Value = response.json();
+    assert_eq!(json["success"], true);
+    assert_eq!(json["new_hash"], "fedcba9876543210");
+    assert_eq!(json["backup_created"], ".stignore.bak.1700000001");
+}
+
+#[tokio::test]
+async fn test_stignore_save_endpoint_validation_failure() {
+    let config = create_test_config();
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let req_body = json!({
+        "agent_name": "test-agent-1",
+        "category_id": "movies",
+        "content": "unclosed_bracket_[invalid\n",
+        "expected_hash": null
+    });
+
+    let response = server
+        .post("/components/stignore/save")
+        .json(&req_body)
+        .await;
+    response.assert_status(axum::http::StatusCode::BAD_REQUEST);
+    let json: serde_json::Value = response.json();
+    assert_eq!(json["success"], false);
+    assert!(
+        json["message"]
+            .as_str()
+            .unwrap()
+            .contains("Validation error")
+    );
+}
+
+#[tokio::test]
+async fn test_stignore_save_endpoint_conflict() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/stignore/set"))
+        .respond_with(ResponseTemplate::new(409).set_body_string("Conflict: modified on disk"))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let req_body = json!({
+        "agent_name": "test-agent-1",
+        "category_id": "movies",
+        "content": "(?d).DS_Store\n",
+        "expected_hash": "stale_hash"
+    });
+
+    let response = server
+        .post("/components/stignore/save")
+        .json(&req_body)
+        .await;
+    response.assert_status(axum::http::StatusCode::CONFLICT);
+    let json: serde_json::Value = response.json();
+    assert_eq!(json["success"], false);
+    assert_eq!(json["conflict"], true);
+}
+
+#[tokio::test]
+async fn test_stignore_restore_endpoint_success() {
+    let mock_server = MockServer::start().await;
+    let restore_resp = AgentRestoreStignoreResponse {
+        success: true,
+        message: "Successfully restored".to_string(),
+        restored_content: "(?d).DS_Store\n".to_string(),
+        new_hash: "restoredhash1234".to_string(),
+    };
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/stignore/restore"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&restore_resp))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let req_body = json!({
+        "agent_name": "test-agent-1",
+        "category_id": "movies",
+        "backup_filename": ".stignore.bak.1700000000"
+    });
+
+    let response = server
+        .post("/components/stignore/restore")
+        .json(&req_body)
+        .await;
+    response.assert_status_ok();
+    let json: serde_json::Value = response.json();
+    assert_eq!(json["success"], true);
+    assert_eq!(json["restored_content"], "(?d).DS_Store\n");
+    assert_eq!(json["new_hash"], "restoredhash1234");
+}
+
+#[tokio::test]
+async fn test_stignore_validate_endpoint() {
+    let config = create_test_config();
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let req_body = json!({
+        "content": "// Comment\n(?d).DS_Store\n#include custom_ignores\n"
+    });
+
+    let response = server
+        .post("/components/stignore/validate")
+        .json(&req_body)
+        .await;
+    response.assert_status_ok();
+    let json: serde_json::Value = response.json();
+    assert_eq!(json["report"]["is_valid"], true);
+    assert_eq!(json["report"]["rule_count"], 1);
+    assert_eq!(json["report"]["comment_count"], 1);
+    assert_eq!(json["report"]["include_count"], 1);
+}

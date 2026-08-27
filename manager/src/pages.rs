@@ -8,6 +8,7 @@ use crate::agents;
 
 #[derive(Serialize)]
 pub struct CategoryInfo {
+    pub id: String,
     pub name: String,
     pub size_kb: u64,
     pub item_count: usize,
@@ -89,6 +90,7 @@ pub async fn build_agent_summaries(state: &AppState) -> Vec<AgentSummary> {
                                         || item_group.stversions_size_kb > 0
                                     {
                                         category_infos.push(CategoryInfo {
+                                            id: category.id.clone(),
                                             name: category.name.clone(),
                                             size_kb,
                                             item_count,
@@ -127,6 +129,7 @@ pub async fn build_agent_summaries(state: &AppState) -> Vec<AgentSummary> {
                             "Unreachable".to_string()
                         }
                         crate::agent_client::AgentError::NotFound(_) => "Not Found".to_string(),
+                        crate::agent_client::AgentError::Conflict(_) => "Conflict".to_string(),
                         crate::agent_client::AgentError::InvalidResponse(_) => "Error".to_string(),
                         crate::agent_client::AgentError::OperationFailed(_) => "Error".to_string(),
                     };
@@ -143,6 +146,9 @@ pub async fn build_agent_summaries(state: &AppState) -> Vec<AgentSummary> {
                         }
                         crate::agent_client::AgentError::NotFound(msg) => {
                             format!("Not found: {}", msg)
+                        }
+                        crate::agent_client::AgentError::Conflict(msg) => {
+                            format!("Conflict: {}", msg)
                         }
                         crate::agent_client::AgentError::InvalidResponse(msg) => {
                             format!("Invalid response: {}", msg)

@@ -10,12 +10,17 @@ pub enum AgentError {
     Timeout(reqwest::Error),
     InvalidResponse(String),
     NotFound(String),
+    Conflict(String),
     OperationFailed(String),
 }
 
 impl AgentError {
     pub fn is_not_found(&self) -> bool {
         matches!(self, AgentError::NotFound(_))
+    }
+
+    pub fn is_conflict(&self) -> bool {
+        matches!(self, AgentError::Conflict(_))
     }
 }
 
@@ -26,6 +31,7 @@ impl std::fmt::Display for AgentError {
             AgentError::Timeout(e) => write!(f, "Request timed out: {}", e),
             AgentError::InvalidResponse(msg) => write!(f, "Invalid response: {}", msg),
             AgentError::NotFound(msg) => write!(f, "Not found: {}", msg),
+            AgentError::Conflict(msg) => write!(f, "Conflict: {}", msg),
             AgentError::OperationFailed(msg) => write!(f, "Operation failed: {}", msg),
         }
     }
@@ -147,6 +153,14 @@ impl AgentClient {
                     error_body
                 );
                 return Err(AgentError::NotFound(error_body));
+            } else if status == reqwest::StatusCode::CONFLICT {
+                tracing::warn!(
+                    "Agent '{}' returned conflict status {}: {}",
+                    agent.name,
+                    status,
+                    error_body
+                );
+                return Err(AgentError::Conflict(error_body));
             } else {
                 tracing::error!(
                     "Agent '{}' returned error status {}: {}",
@@ -288,6 +302,52 @@ impl AgentClient {
                 message,
             } => Err(AgentError::OperationFailed(message)),
         }
+    }
+
+    /// Get full .stignore content, hash, and backups from an agent
+    pub async fn get_stignore(
+        &self,
+        agent: &Agent,
+        request: &AgentGetStignoreRequest,
+    ) -> Result<AgentGetStignoreResponse, AgentError> {
+        tracing::info!(
+            "Getting .stignore from agent '{}' for category: '{}'",
+            agent.name,
+            request.category_id
+        );
+        self.make_request(agent, "stignore/get", Method::POST, Some(request))
+            .await
+    }
+
+    /// Set/overwrite full .stignore content on an agent with optimistic locking
+    pub async fn set_stignore(
+        &self,
+        agent: &Agent,
+        request: &AgentSetStignoreRequest,
+    ) -> Result<AgentSetStignoreResponse, AgentError> {
+        tracing::info!(
+            "Setting .stignore on agent '{}' for category: '{}'",
+            agent.name,
+            request.category_id
+        );
+        self.make_request(agent, "stignore/set", Method::POST, Some(request))
+            .await
+    }
+
+    /// Restore .stignore from a backup on an agent
+    pub async fn restore_stignore(
+        &self,
+        agent: &Agent,
+        request: &AgentRestoreStignoreRequest,
+    ) -> Result<AgentRestoreStignoreResponse, AgentError> {
+        tracing::info!(
+            "Restoring .stignore on agent '{}' for category: '{}' from backup: '{}'",
+            agent.name,
+            request.category_id,
+            request.backup_filename
+        );
+        self.make_request(agent, "stignore/restore", Method::POST, Some(request))
+            .await
     }
 }
 

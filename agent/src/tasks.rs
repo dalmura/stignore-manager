@@ -450,6 +450,167 @@ pub async fn post_delete(
     }
 }
 
+// POST stignore/get
+// Retrieves the entire .stignore content, hash, and backups for a category
+pub async fn post_stignore_get(
+    State(data): State<AgentData>,
+    Json(payload): Json<AgentGetStignoreRequest>,
+) -> Response {
+    let category =
+        match data.categories.iter().find(|c| {
+            c.id == payload.category_id || c.name.eq_ignore_ascii_case(&payload.category_id)
+        }) {
+            Some(cat) => cat,
+            None => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(NotFoundResponse {
+                        message: format!("Category ID '{}' not found", payload.category_id),
+                    }),
+                )
+                    .into_response();
+            }
+        };
+
+    let category_base_path = build_category_base_path(&data.agent, category);
+    match filesystem::get_stignore_full(&category_base_path) {
+        Ok((content, hash, exists, backups)) => (
+            StatusCode::OK,
+            Json(AgentGetStignoreResponse {
+                content,
+                hash,
+                exists,
+                backups,
+            }),
+        )
+            .into_response(),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(NotFoundResponse { message: err }),
+        )
+            .into_response(),
+    }
+}
+
+// POST stignore/set
+// Overwrites the entire .stignore file with optimistic locking and backup creation
+pub async fn post_stignore_set(
+    State(data): State<AgentData>,
+    Json(payload): Json<AgentSetStignoreRequest>,
+) -> Response {
+    let category =
+        match data.categories.iter().find(|c| {
+            c.id == payload.category_id || c.name.eq_ignore_ascii_case(&payload.category_id)
+        }) {
+            Some(cat) => cat,
+            None => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(AgentSetStignoreResponse {
+                        success: false,
+                        message: format!("Category ID '{}' not found", payload.category_id),
+                        new_hash: String::new(),
+                        backup_created: None,
+                    }),
+                )
+                    .into_response();
+            }
+        };
+
+    let category_base_path = build_category_base_path(&data.agent, category);
+    match filesystem::set_stignore_full(
+        &category_base_path,
+        &payload.content,
+        payload.expected_hash.as_deref(),
+        &category.name,
+    ) {
+        Ok((new_hash, backup_created)) => (
+            StatusCode::OK,
+            Json(AgentSetStignoreResponse {
+                success: true,
+                message: format!("Successfully updated .stignore in '{}'", category.name),
+                new_hash,
+                backup_created,
+            }),
+        )
+            .into_response(),
+        Err(err) => {
+            let status = if err.starts_with("Conflict:") {
+                StatusCode::CONFLICT
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            (
+                status,
+                Json(AgentSetStignoreResponse {
+                    success: false,
+                    message: err,
+                    new_hash: String::new(),
+                    backup_created: None,
+                }),
+            )
+                .into_response()
+        }
+    }
+}
+
+// POST stignore/restore
+// Restores .stignore from a previous backup file
+pub async fn post_stignore_restore(
+    State(data): State<AgentData>,
+    Json(payload): Json<AgentRestoreStignoreRequest>,
+) -> Response {
+    let category =
+        match data.categories.iter().find(|c| {
+            c.id == payload.category_id || c.name.eq_ignore_ascii_case(&payload.category_id)
+        }) {
+            Some(cat) => cat,
+            None => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(AgentRestoreStignoreResponse {
+                        success: false,
+                        message: format!("Category ID '{}' not found", payload.category_id),
+                        restored_content: String::new(),
+                        new_hash: String::new(),
+                    }),
+                )
+                    .into_response();
+            }
+        };
+
+    let category_base_path = build_category_base_path(&data.agent, category);
+    match filesystem::restore_stignore_backup(
+        &category_base_path,
+        &payload.backup_filename,
+        &category.name,
+    ) {
+        Ok((restored_content, new_hash)) => (
+            StatusCode::OK,
+            Json(AgentRestoreStignoreResponse {
+                success: true,
+                message: format!(
+                    "Successfully restored .stignore in '{}' from backup '{}'",
+                    category.name, payload.backup_filename
+                ),
+                restored_content,
+                new_hash,
+            }),
+        )
+            .into_response(),
+        Err(err) => (
+            StatusCode::BAD_REQUEST,
+            Json(AgentRestoreStignoreResponse {
+                success: false,
+                message: err,
+                restored_content: String::new(),
+                new_hash: String::new(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -619,6 +780,18 @@ mod tests {
                 axum::routing::post(post_ignore_status_bulk),
             )
             .route("/api/v1/delete", axum::routing::post(post_delete))
+            .route(
+                "/api/v1/stignore/get",
+                axum::routing::post(post_stignore_get),
+            )
+            .route(
+                "/api/v1/stignore/set",
+                axum::routing::post(post_stignore_set),
+            )
+            .route(
+                "/api/v1/stignore/restore",
+                axum::routing::post(post_stignore_restore),
+            )
             .layer(axum::middleware::from_fn_with_state(
                 data.clone(),
                 crate::auth_middleware,
@@ -1544,5 +1717,148 @@ mod tests {
                 .iter()
                 .any(|name| name.starts_with(".syncthing."))
         );
+    }
+
+    #[tokio::test]
+    async fn test_stignore_get_and_set_workflow() {
+        let (server, _temp_dir) = setup_test_server().await;
+
+        // 1. Get initial .stignore
+        let get_req = AgentGetStignoreRequest {
+            category_id: MOVIES_ID.to_string(),
+        };
+        let get_resp = server
+            .post("/api/v1/stignore/get")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&get_req)
+            .await;
+        get_resp.assert_status(StatusCode::OK);
+
+        let initial_json: AgentGetStignoreResponse = get_resp.json();
+        let initial_hash = initial_json.hash;
+
+        // 2. Set new content with expected hash
+        let new_content = "// Movies stignore\n(?d).DS_Store\nMovie 1 (2023)/\n";
+        let set_req = AgentSetStignoreRequest {
+            category_id: MOVIES_ID.to_string(),
+            content: new_content.to_string(),
+            expected_hash: Some(initial_hash.clone()),
+        };
+
+        let set_resp = server
+            .post("/api/v1/stignore/set")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&set_req)
+            .await;
+        set_resp.assert_status(StatusCode::OK);
+
+        let set_json: AgentSetStignoreResponse = set_resp.json();
+        assert!(set_json.success);
+        let updated_hash = set_json.new_hash;
+        assert_ne!(updated_hash, initial_hash);
+
+        // 3. Verify get returns new content and created backup
+        let get_resp2 = server
+            .post("/api/v1/stignore/get")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&get_req)
+            .await;
+        let get_json2: AgentGetStignoreResponse = get_resp2.json();
+        assert_eq!(get_json2.content.trim(), new_content.trim());
+        assert_eq!(get_json2.hash, updated_hash);
+        assert!(!get_json2.backups.is_empty());
+
+        // 4. Test optimistic locking conflict
+        let conflict_set_req = AgentSetStignoreRequest {
+            category_id: MOVIES_ID.to_string(),
+            content: "another update".to_string(),
+            expected_hash: Some("outdated_hash_123".to_string()),
+        };
+        let conflict_resp = server
+            .post("/api/v1/stignore/set")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&conflict_set_req)
+            .await;
+        conflict_resp.assert_status(StatusCode::CONFLICT);
+
+        // 5. Test restore backup
+        let backup_file = &get_json2.backups[0].filename;
+        let restore_req = AgentRestoreStignoreRequest {
+            category_id: MOVIES_ID.to_string(),
+            backup_filename: backup_file.clone(),
+        };
+        let restore_resp = server
+            .post("/api/v1/stignore/restore")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&restore_req)
+            .await;
+        restore_resp.assert_status(StatusCode::OK);
+        let restore_json: AgentRestoreStignoreResponse = restore_resp.json();
+        assert!(restore_json.success);
+    }
+
+    #[tokio::test]
+    async fn test_ignore_and_unignore_creates_backup() {
+        let (server, _temp_dir) = setup_test_server().await;
+
+        // 1. Initially set .stignore content
+        let set_req = AgentSetStignoreRequest {
+            category_id: MOVIES_ID.to_string(),
+            content: "Movie 1 (2023)/\n".to_string(),
+            expected_hash: None,
+        };
+        let set_resp = server
+            .post("/api/v1/stignore/set")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&set_req)
+            .await;
+        set_resp.assert_status(StatusCode::OK);
+
+        // 2. Ignore another movie via /api/v1/ignore
+        let ignore_req = IgnoreRequest {
+            category_id: MOVIES_ID.to_string(),
+            folder_path: vec!["Movie 2 (2023)".to_string()],
+        };
+        let ignore_resp = server
+            .post("/api/v1/ignore")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&ignore_req)
+            .await;
+        ignore_resp.assert_status(StatusCode::OK);
+
+        // 3. Verify backup exists
+        let get_req = AgentGetStignoreRequest {
+            category_id: MOVIES_ID.to_string(),
+        };
+        let get_resp = server
+            .post("/api/v1/stignore/get")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&get_req)
+            .await;
+        let get_json: AgentGetStignoreResponse = get_resp.json();
+        assert!(!get_json.backups.is_empty());
+        assert!(get_json.content.contains("Movie 2 (2023)"));
+
+        // 4. Unignore movie via /api/v1/unignore
+        let unignore_req = IgnoreRequest {
+            category_id: MOVIES_ID.to_string(),
+            folder_path: vec!["Movie 2 (2023)".to_string()],
+        };
+        let unignore_resp = server
+            .post("/api/v1/unignore")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&unignore_req)
+            .await;
+        unignore_resp.assert_status(StatusCode::OK);
+
+        // 5. Verify unignore succeeded and created another backup
+        let get_resp2 = server
+            .post("/api/v1/stignore/get")
+            .add_header("X-API-Key", "550e8400-e29b-41d4-a716-446655440000")
+            .json(&get_req)
+            .await;
+        let get_json2: AgentGetStignoreResponse = get_resp2.json();
+        assert!(!get_json2.content.contains("Movie 2 (2023)"));
+        assert!(!get_json2.backups.is_empty());
     }
 }

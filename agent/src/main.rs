@@ -105,6 +105,12 @@ async fn main() {
             post(tasks::post_ignore_status_bulk),
         )
         .route("/api/v1/delete", post(tasks::post_delete))
+        .route("/api/v1/stignore/get", post(tasks::post_stignore_get))
+        .route("/api/v1/stignore/set", post(tasks::post_stignore_set))
+        .route(
+            "/api/v1/stignore/restore",
+            post(tasks::post_stignore_restore),
+        )
         .layer(middleware::from_fn_with_state(
             data.clone(),
             auth_middleware,

@@ -34,6 +34,7 @@ pub fn router() -> Router<AppState> {
         .route("/dynamic-items.html", get(dynamic_items))
         .route("/infopanel.html", post(infopanel))
         .route("/agent-modal.html", post(agent_modal))
+        .route("/stignore-modal.html", post(stignore_modal))
         .route("/agents/toggle", post(toggle_agent))
         .route("/agents-table.html", get(agents_table))
         .route("/agent-status-pill.html", get(agent_status_pill))
@@ -44,6 +45,9 @@ pub fn router() -> Router<AppState> {
         .route("/bulk-ignore", post(bulk_ignore_item))
         .route("/bulk-unignore", post(bulk_unignore_item))
         .route("/bulk-delete", post(bulk_delete_item))
+        .route("/stignore/save", post(save_stignore))
+        .route("/stignore/restore", post(restore_stignore))
+        .route("/stignore/validate", post(validate_stignore))
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -359,7 +363,10 @@ async fn infopanel(
             context.insert("item", &response.item);
             context.insert("agent_items", &agent_items_with_status);
             context.insert("parent_names", &filtered_item_path);
-            context.insert("item_path", &payload.item_path);
+            context.insert("item_path", &filtered_item_path);
+            if let Some(cat_id) = filtered_item_path.first() {
+                context.insert("category_id", cat_id);
+            }
         }
         Err(_) => {
             // Insert empty defaults to prevent template errors
@@ -461,6 +468,9 @@ async fn agent_modal(
                 context.insert("agent_item", &agent_item_with_status);
                 context.insert("merged_items", &merged_items);
                 context.insert("item_path", &item_path_parts);
+                if let Some(cat_id) = item_path_parts.first() {
+                    context.insert("category_id", cat_id);
+                }
             } else {
                 // Agent not found, insert empty data
                 let error_msg = format!("Agent '{}' not found", payload.agent_name);
@@ -1644,4 +1654,305 @@ async fn dynamic_items(
         context.into_json(),
     )
     .into_response()
+}
+
+#[derive(Deserialize, Debug)]
+pub struct StignoreModalRequest {
+    pub agent_name: String,
+    pub category_id: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SaveStignoreRequest {
+    pub agent_name: String,
+    pub category_id: String,
+    pub content: String,
+    #[serde(default)]
+    pub expected_hash: Option<String>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct SaveStignoreResponse {
+    pub success: bool,
+    pub message: String,
+    pub new_hash: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backup_created: Option<String>,
+    pub conflict: bool,
+    pub validation: stignore_lib::StignoreValidationReport,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct RestoreStignoreRequest {
+    pub agent_name: String,
+    pub category_id: String,
+    pub backup_filename: String,
+}
+
+#[derive(Serialize, Debug)]
+pub struct RestoreStignoreResponse {
+    pub success: bool,
+    pub message: String,
+    pub restored_content: String,
+    pub new_hash: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ValidateStignoreRequest {
+    pub content: String,
+}
+
+#[derive(Serialize, Debug)]
+pub struct ValidateStignoreResponse {
+    pub report: stignore_lib::StignoreValidationReport,
+}
+
+async fn stignore_modal(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Json(payload): Json<StignoreModalRequest>,
+) -> impl IntoResponse {
+    let mut context = state.context.clone();
+    auth::inject_auth_context(&mut context, &auth_user);
+
+    let clean_category_id = payload.category_id.trim();
+    if clean_category_id.is_empty() {
+        context.insert("error", "No Category ID specified");
+        return RenderHtml(
+            Key("components/stignore-modal.html".to_string()),
+            state.engine,
+            context.into_json(),
+        );
+    }
+
+    let agent = match state
+        .config
+        .agents
+        .iter()
+        .find(|a| a.name == payload.agent_name)
+    {
+        Some(a) => a,
+        None => {
+            context.insert(
+                "error",
+                &format!("Agent '{}' not found", payload.agent_name),
+            );
+            return RenderHtml(
+                Key("components/stignore-modal.html".to_string()),
+                state.engine,
+                context.into_json(),
+            );
+        }
+    };
+
+    let req = AgentGetStignoreRequest {
+        category_id: clean_category_id.to_string(),
+    };
+
+    match state.agent_client.get_stignore(agent, &req).await {
+        Ok(resp) => {
+            let validation = validate_stignore_content(&resp.content);
+            context.insert("agent_name", &agent.name);
+            context.insert("category_id", &payload.category_id);
+            context.insert("content", &resp.content);
+            context.insert("hash", &resp.hash);
+            context.insert("exists", &resp.exists);
+            context.insert("backups", &resp.backups);
+            context.insert("validation", &validation);
+        }
+        Err(err) => {
+            context.insert(
+                "error",
+                &format!(
+                    "Failed to retrieve .stignore from agent '{}': {}",
+                    agent.name, err
+                ),
+            );
+        }
+    }
+
+    RenderHtml(
+        Key("components/stignore-modal.html".to_string()),
+        state.engine,
+        context.into_json(),
+    )
+}
+
+async fn save_stignore(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Json(payload): Json<SaveStignoreRequest>,
+) -> impl IntoResponse {
+    if !auth_user.is_admin() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(SaveStignoreResponse {
+                success: false,
+                message: "Access denied: Admin role required".to_string(),
+                new_hash: String::new(),
+                backup_created: None,
+                conflict: false,
+                validation: StignoreValidationReport::default(),
+            }),
+        )
+            .into_response();
+    }
+
+    let agent = match state
+        .config
+        .agents
+        .iter()
+        .find(|a| a.name == payload.agent_name)
+    {
+        Some(a) => a,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(SaveStignoreResponse {
+                    success: false,
+                    message: format!("Agent '{}' not found", payload.agent_name),
+                    new_hash: String::new(),
+                    backup_created: None,
+                    conflict: false,
+                    validation: StignoreValidationReport::default(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let validation = validate_stignore_content(&payload.content);
+    if !validation.is_valid {
+        let first_err = validation
+            .issues
+            .iter()
+            .find(|i| i.severity == StignoreIssueSeverity::Error)
+            .map(|i| i.message.clone())
+            .unwrap_or_else(|| "Syntax validation failed".to_string());
+
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(SaveStignoreResponse {
+                success: false,
+                message: format!("Validation error: {}", first_err),
+                new_hash: String::new(),
+                backup_created: None,
+                conflict: false,
+                validation,
+            }),
+        )
+            .into_response();
+    }
+
+    let req = AgentSetStignoreRequest {
+        category_id: payload.category_id,
+        content: payload.content,
+        expected_hash: payload.expected_hash,
+    };
+
+    match state.agent_client.set_stignore(agent, &req).await {
+        Ok(resp) => Json(SaveStignoreResponse {
+            success: true,
+            message: resp.message,
+            new_hash: resp.new_hash,
+            backup_created: resp.backup_created,
+            conflict: false,
+            validation,
+        })
+        .into_response(),
+        Err(err) if err.is_conflict() => (
+            StatusCode::CONFLICT,
+            Json(SaveStignoreResponse {
+                success: false,
+                message: err.to_string(),
+                new_hash: String::new(),
+                backup_created: None,
+                conflict: true,
+                validation,
+            }),
+        )
+            .into_response(),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(SaveStignoreResponse {
+                success: false,
+                message: err.to_string(),
+                new_hash: String::new(),
+                backup_created: None,
+                conflict: false,
+                validation,
+            }),
+        )
+            .into_response(),
+    }
+}
+
+async fn restore_stignore(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Json(payload): Json<RestoreStignoreRequest>,
+) -> impl IntoResponse {
+    if !auth_user.is_admin() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(RestoreStignoreResponse {
+                success: false,
+                message: "Access denied: Admin role required".to_string(),
+                restored_content: String::new(),
+                new_hash: String::new(),
+            }),
+        )
+            .into_response();
+    }
+
+    let agent = match state
+        .config
+        .agents
+        .iter()
+        .find(|a| a.name == payload.agent_name)
+    {
+        Some(a) => a,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(RestoreStignoreResponse {
+                    success: false,
+                    message: format!("Agent '{}' not found", payload.agent_name),
+                    restored_content: String::new(),
+                    new_hash: String::new(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let req = AgentRestoreStignoreRequest {
+        category_id: payload.category_id,
+        backup_filename: payload.backup_filename,
+    };
+
+    match state.agent_client.restore_stignore(agent, &req).await {
+        Ok(resp) => Json(RestoreStignoreResponse {
+            success: true,
+            message: resp.message,
+            restored_content: resp.restored_content,
+            new_hash: resp.new_hash,
+        })
+        .into_response(),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(RestoreStignoreResponse {
+                success: false,
+                message: err.to_string(),
+                restored_content: String::new(),
+                new_hash: String::new(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+async fn validate_stignore(Json(payload): Json<ValidateStignoreRequest>) -> impl IntoResponse {
+    let report = validate_stignore_content(&payload.content);
+    Json(ValidateStignoreResponse { report })
 }

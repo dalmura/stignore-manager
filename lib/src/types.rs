@@ -356,6 +356,251 @@ pub struct AgentBulkIgnoreStatusResponse {
     pub items: Vec<AgentIgnoreStatusResponse>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct StignoreBackupInfo {
+    pub filename: String,
+    pub timestamp: u64,
+    pub size_bytes: u64,
+    #[serde(default)]
+    pub content: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AgentGetStignoreRequest {
+    pub category_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AgentGetStignoreResponse {
+    pub content: String,
+    pub hash: String,
+    pub exists: bool,
+    #[serde(default)]
+    pub backups: Vec<StignoreBackupInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AgentSetStignoreRequest {
+    pub category_id: String,
+    pub content: String,
+    #[serde(default)]
+    pub expected_hash: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AgentSetStignoreResponse {
+    pub success: bool,
+    pub message: String,
+    pub new_hash: String,
+    #[serde(default)]
+    pub backup_created: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AgentRestoreStignoreRequest {
+    pub category_id: String,
+    pub backup_filename: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AgentRestoreStignoreResponse {
+    pub success: bool,
+    pub message: String,
+    pub restored_content: String,
+    pub new_hash: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StignoreIssueSeverity {
+    Error,
+    Warning,
+    Info,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct StignoreIssue {
+    pub line_number: usize,
+    pub line_content: String,
+    pub severity: StignoreIssueSeverity,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+pub struct StignoreValidationReport {
+    pub is_valid: bool,
+    pub total_lines: usize,
+    pub rule_count: usize,
+    pub comment_count: usize,
+    pub include_count: usize,
+    pub blank_count: usize,
+    pub issues: Vec<StignoreIssue>,
+}
+
+/// Compute a fast deterministic content hash for optimistic locking
+pub fn compute_content_hash(content: &str) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    content.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+/// Validate Syncthing .stignore syntax and detect potential safety issues
+pub fn validate_stignore_content(content: &str) -> StignoreValidationReport {
+    let mut issues = Vec::new();
+    let mut total_lines = 0;
+    let mut rule_count = 0;
+    let mut comment_count = 0;
+    let mut include_count = 0;
+    let mut blank_count = 0;
+    let mut has_prior_inclusions = false;
+
+    for (idx, raw_line) in content.lines().enumerate() {
+        total_lines += 1;
+        let line_number = idx + 1;
+        let trimmed = raw_line.trim();
+
+        if trimmed.is_empty() {
+            blank_count += 1;
+            continue;
+        }
+
+        if trimmed.starts_with("//") {
+            comment_count += 1;
+            continue;
+        }
+
+        if trimmed.starts_with("#include") {
+            include_count += 1;
+            let parts: Vec<&str> = trimmed.split_whitespace().collect();
+            if parts.len() < 2 {
+                issues.push(StignoreIssue {
+                    line_number,
+                    line_content: raw_line.to_string(),
+                    severity: StignoreIssueSeverity::Error,
+                    message: "Malformed #include directive: missing target file path".to_string(),
+                });
+            }
+            continue;
+        }
+
+        rule_count += 1;
+
+        // Check for null bytes
+        if raw_line.contains('\0') {
+            issues.push(StignoreIssue {
+                line_number,
+                line_content: raw_line.to_string(),
+                severity: StignoreIssueSeverity::Error,
+                message: "Line contains invalid null character ('\\0')".to_string(),
+            });
+            continue;
+        }
+
+        // Check for Windows-style backslashes
+        if trimmed.contains('\\') {
+            issues.push(StignoreIssue {
+                line_number,
+                line_content: raw_line.to_string(),
+                severity: StignoreIssueSeverity::Warning,
+                message: "Contains backslash '\\'. Syncthing ignore patterns must use forward slashes '/' for cross-platform compatibility".to_string(),
+            });
+        }
+
+        // Check for unclosed square bracket glob patterns
+        let open_brackets = trimmed.chars().filter(|c| *c == '[').count();
+        let close_brackets = trimmed.chars().filter(|c| *c == ']').count();
+        if open_brackets != close_brackets {
+            issues.push(StignoreIssue {
+                line_number,
+                line_content: raw_line.to_string(),
+                severity: StignoreIssueSeverity::Error,
+                message: "Mismatched square brackets in pattern (unclosed character class)"
+                    .to_string(),
+            });
+        }
+
+        // Parse optional Syncthing prefixes: (?d), (?i), (?d)(?i), (?i)(?d)
+        let mut pattern = trimmed;
+        let mut prefix_count = 0;
+        while pattern.starts_with("(?") {
+            if pattern.starts_with("(?d)") || pattern.starts_with("(?i)") {
+                pattern = &pattern[4..];
+                prefix_count += 1;
+            } else {
+                let end_bracket = pattern.find(')').unwrap_or(pattern.len());
+                let unknown_flag = &pattern[..=end_bracket.min(pattern.len() - 1)];
+                issues.push(StignoreIssue {
+                    line_number,
+                    line_content: raw_line.to_string(),
+                    severity: StignoreIssueSeverity::Error,
+                    message: format!(
+                        "Unknown Syncthing modifier '{}'. Only (?d) and (?i) are supported",
+                        unknown_flag
+                    ),
+                });
+                break;
+            }
+            if prefix_count > 2 {
+                break;
+            }
+        }
+
+        // Check for inclusion prefix '!'
+        if pattern.starts_with('!') {
+            has_prior_inclusions = true;
+            pattern = &pattern[1..];
+        }
+
+        let clean_pattern = pattern.trim_matches('/');
+
+        // Check dangerous system files
+        if clean_pattern == ".stfolder" || clean_pattern.starts_with(".stfolder/") {
+            issues.push(StignoreIssue {
+                line_number,
+                line_content: raw_line.to_string(),
+                severity: StignoreIssueSeverity::Error,
+                message: "Ignoring '.stfolder' will break Syncthing folder health detection and cause the folder to stop syncing".to_string(),
+            });
+        } else if clean_pattern == ".stignore" {
+            issues.push(StignoreIssue {
+                line_number,
+                line_content: raw_line.to_string(),
+                severity: StignoreIssueSeverity::Warning,
+                message:
+                    "Ignoring '.stignore' itself may cause unexpected synchronization behavior"
+                        .to_string(),
+            });
+        }
+
+        // Check dangerous blanket ignores
+        if (clean_pattern == "*" || clean_pattern == "**" || pattern == "/" || pattern == "./")
+            && !has_prior_inclusions
+        {
+            issues.push(StignoreIssue {
+                line_number,
+                line_content: raw_line.to_string(),
+                severity: StignoreIssueSeverity::Warning,
+                message: format!("Catch-all pattern '{}' will ignore all files in this folder. Place inclusion rules ('!filename') before this line if you intend to only sync specific items", pattern),
+            });
+        }
+    }
+
+    let is_valid = !issues
+        .iter()
+        .any(|issue| issue.severity == StignoreIssueSeverity::Error);
+
+    StignoreValidationReport {
+        is_valid,
+        total_lines,
+        rule_count,
+        comment_count,
+        include_count,
+        blank_count,
+        issues,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -679,5 +924,93 @@ mod tests {
         assert!(deserialized.is_syncing);
         assert_eq!(deserialized.stversions_size_kb, 1024);
         assert!(deserialized.stfolder_present);
+    }
+
+    #[test]
+    fn test_stignore_validation_valid_cases() {
+        let content = "// Comment line\n\
+(?d).DS_Store\n\
+(?i)*.sample.mkv\n\
+(?d)(?i)Thumbs.db\n\
+!Movie 1 (2023)/\n\
+Movie 2 (2024)/\n\
+#include subfolder/extra_ignores\n";
+
+        let report = validate_stignore_content(content);
+        assert!(report.is_valid);
+        assert_eq!(report.total_lines, 7);
+        assert_eq!(report.comment_count, 1);
+        assert_eq!(report.include_count, 1);
+        assert_eq!(report.rule_count, 5);
+        assert_eq!(report.issues.len(), 0);
+    }
+
+    #[test]
+    fn test_stignore_validation_dangerous_patterns() {
+        let content = "// Stignore with dangerous rules\n\
+.stfolder\n\
+(?d).stfolder\n\
+.stignore\n\
+*\n";
+
+        let report = validate_stignore_content(content);
+        assert!(!report.is_valid); // .stfolder is an Error
+        assert_eq!(report.total_lines, 5);
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.severity == StignoreIssueSeverity::Error
+                    && i.message.contains(".stfolder"))
+        );
+        assert!(report.issues.iter().any(
+            |i| i.severity == StignoreIssueSeverity::Warning && i.message.contains(".stignore")
+        ));
+        assert!(report.issues.iter().any(
+            |i| i.severity == StignoreIssueSeverity::Warning && i.message.contains("Catch-all")
+        ));
+    }
+
+    #[test]
+    fn test_stignore_validation_syntax_errors() {
+        let content = "invalid_bracket_[abc\n\
+(?x)invalid_flag\n\
+windows\\path\\rule\n\
+#include\n";
+
+        let report = validate_stignore_content(content);
+        assert!(!report.is_valid);
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.message.contains("Mismatched square brackets"))
+        );
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.message.contains("Unknown Syncthing modifier"))
+        );
+        assert!(report.issues.iter().any(
+            |i| i.severity == StignoreIssueSeverity::Warning && i.message.contains("backslash")
+        ));
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|i| i.message.contains("Malformed #include"))
+        );
+    }
+
+    #[test]
+    fn test_compute_content_hash() {
+        let h1 = compute_content_hash("hello world");
+        let h2 = compute_content_hash("hello world");
+        let h3 = compute_content_hash("hello world 2");
+
+        assert_eq!(h1, h2);
+        assert_ne!(h1, h3);
+        assert_eq!(h1.len(), 16);
     }
 }

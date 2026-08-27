@@ -168,3 +168,36 @@ async fn test_auth_custom_headers_and_roles() {
 
     assert_eq!(response.status_code(), StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn test_auth_enabled_stignore_endpoints_rbac() {
+    let config = create_auth_config(true);
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    // 1. Reader trying to save .stignore -> 403 Forbidden
+    let response = server
+        .post("/components/stignore/save")
+        .add_header("X-Proxy-User", "reader_user")
+        .add_header("X-Proxy-Role", "Reader")
+        .json(&json!({
+            "agent_name": "test-agent-1",
+            "category_id": "movies",
+            "content": "(?d).DS_Store\n"
+        }))
+        .await;
+    assert_eq!(response.status_code(), StatusCode::FORBIDDEN);
+
+    // 2. Reader trying to restore backup -> 403 Forbidden
+    let response = server
+        .post("/components/stignore/restore")
+        .add_header("X-Proxy-User", "reader_user")
+        .add_header("X-Proxy-Role", "Reader")
+        .json(&json!({
+            "agent_name": "test-agent-1",
+            "category_id": "movies",
+            "backup_filename": ".stignore.bak.1700000000"
+        }))
+        .await;
+    assert_eq!(response.status_code(), StatusCode::FORBIDDEN);
+}

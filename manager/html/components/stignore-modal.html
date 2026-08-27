@@ -1,0 +1,154 @@
+{% if error %}
+<div class="alert alert-danger m-3" role="alert">
+    <strong>Error:</strong> {{ error }}
+</div>
+{% else %}
+<div class="p-3">
+    <!-- Header info -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h5 class="mb-1 d-flex align-items-center gap-2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="text-primary">
+                    <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                </svg>
+                <span><strong>{{ agent_name }}</strong> / <code class="text-primary">{{ category_id }}</code></span>
+            </h5>
+            <span class="text-muted small">Manage raw <code>.stignore</code> rules and Syncthing exclusion patterns</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            {% if exists %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle">File on disk</span>
+            {% else %}
+                <span class="badge bg-secondary-subtle text-secondary border">New file</span>
+            {% endif %}
+            <span class="badge bg-body-secondary text-body-secondary border font-monospace small" id="stignoreHashBadge" title="Optimistic Locking Content Hash">#{{ hash }}</span>
+        </div>
+    </div>
+
+    <!-- Toolbar & Stats -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-2 bg-body-tertiary border rounded mb-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="badge bg-primary rounded-pill" id="stignoreRuleCount">{{ validation.rule_count }} rules</span>
+            <span class="badge bg-secondary rounded-pill" id="stignoreCommentCount">{{ validation.comment_count }} comments</span>
+            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle rounded-pill" id="stignoreIncludeCount">{{ validation.include_count }} includes</span>
+            <span class="badge {% if validation.is_valid %}bg-success-subtle text-success border border-success-subtle{% else %}bg-danger-subtle text-danger border border-danger-subtle{% endif %} rounded-pill" id="stignoreValidationPill">
+                {% if validation.is_valid %}✓ Valid Syntax{% else %}❌ Syntax Issues{% endif %}
+            </span>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatStignoreContent()" title="Trim whitespace and clean blank lines">
+                🧹 Clean
+            </button>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="stignoreDiffToggleBtn" onclick="toggleStignoreDiff()" title="Compare edits against original file">
+                🔍 View Diff
+            </button>
+
+            {% if backups and backups | length > 0 %}
+            <div class="dropdown d-inline-block">
+                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="backupsDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Available timestamped backups on agent">
+                    ⏱ Backups ({{ backups | length }})
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm p-0" aria-labelledby="backupsDropdown" style="max-height: 320px; overflow-y: auto; min-width: 320px;">
+                    <li class="bg-body-secondary px-3 py-2 border-bottom"><h6 class="dropdown-header p-0 m-0 fw-semibold text-body">Timestamped Backups</h6></li>
+                    {% for b in backups %}
+                    <li class="border-bottom border-light-subtle">
+                        <div class="d-flex justify-content-between align-items-center px-3 py-2">
+                            <div class="me-3">
+                                <div class="font-monospace small fw-bold text-body">{{ b.filename }}</div>
+                                <small class="text-secondary">
+                                    <span class="backup-ts-label" data-ts="{{ b.timestamp }}"></span> · {{ b.size_bytes }} B
+                                </small>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-warning text-dark fw-medium d-inline-flex align-items-center gap-1 py-1 px-2 flex-shrink-0"
+                                    onclick="loadStignoreBackup('{{ b.filename }}')" title="Load this backup into the editor to inspect and edit before saving">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+                                </svg>
+                                <span>Load Backup</span>
+                            </button>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Live Issues Box -->
+    <div id="stignoreIssuesContainer" class="mb-2 {% if not validation.issues or validation.issues | length == 0 %}d-none{% endif %}">
+        {% for issue in validation.issues %}
+        <div class="alert {% if issue.severity == 'error' %}alert-danger{% elif issue.severity == 'warning' %}alert-warning{% else %}alert-info{% endif %} py-1 px-3 mb-1 small d-flex align-items-center justify-content-between">
+            <div>
+                <strong>Line {{ issue.line_number }}:</strong> {{ issue.message }}
+                <code class="ms-1 font-monospace bg-body-secondary px-1 py-0 rounded">{{ issue.line_content }}</code>
+            </div>
+            <span class="badge {% if issue.severity == 'error' %}bg-danger{% else %}bg-warning text-dark{% endif %} uppercase">{{ issue.severity }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Editor Container -->
+    <div id="stignoreEditorContainer" class="position-relative mb-2">
+        <textarea id="stignoreTextarea" class="form-control font-monospace p-3" rows="16"
+                  style="font-size: 0.88rem; line-height: 1.6; tab-size: 4; white-space: pre; overflow-x: auto; background-color: var(--bs-body-bg); color: var(--bs-body-color); border: 1px solid var(--bs-border-color);"
+                  spellcheck="false" autocomplete="off" autocapitalize="off"
+                  oninput="handleStignoreInput()">{{ content }}</textarea>
+    </div>
+
+    <!-- Diff Container (hidden initially) -->
+    <div id="stignoreDiffContainer" class="d-none border rounded p-3 mb-2 bg-body-tertiary" style="max-height: 350px; overflow-y: auto;">
+        <h6 class="mb-2 text-primary fw-bold">Unsaved Changes (Diff Preview):</h6>
+        <div id="stignoreDiffContent" class="font-monospace small"></div>
+    </div>
+
+    <!-- Quick Reference Accordion -->
+    <div class="accordion accordion-flush border rounded mb-3" id="stignoreHelpAccordion">
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="headingHelp">
+                <button class="accordion-button collapsed py-2 small bg-body-secondary text-body" type="button" data-bs-toggle="collapse" data-bs-target="#collapseHelp" aria-expanded="false" aria-controls="collapseHelp">
+                    ℹ️ Syncthing <code>.stignore</code> Syntax Guide & Directives
+                </button>
+            </h2>
+            <div id="collapseHelp" class="accordion-collapse collapse" aria-labelledby="headingHelp" data-bs-parent="#stignoreHelpAccordion">
+                <div class="accordion-body small py-2">
+                    <ul class="mb-0 ps-3">
+                        <li><code>(?d)</code>: Delete ignored files when deleting folders on other nodes (e.g. <code>(?d).DS_Store</code>).</li>
+                        <li><code>(?i)</code>: Case-insensitive matching (e.g. <code>(?i)*.sample.mkv</code>).</li>
+                        <li><code>!pattern</code>: Inclusion override / inversion (e.g. <code>!KeepThis/</code> followed by <code>*</code>).</li>
+                        <li><code>// comment</code>: Comment line.</li>
+                        <li><code>#include path</code>: Include another ignore file relative to this folder.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden state inputs -->
+    <input type="hidden" id="stignoreAgentName" value="{{ agent_name }}">
+    <input type="hidden" id="stignoreCategoryId" value="{{ category_id }}">
+    <input type="hidden" id="stignoreExpectedHash" value="{{ hash }}">
+    <input type="hidden" id="stignoreOriginalContent" value="{{ content }}">
+
+    <!-- Embedded backup contents for instant preview/loading into editor -->
+    {% if backups and backups | length > 0 %}
+        {% for b in backups %}
+        <textarea id="stignore-backup-content-{{ b.filename }}" style="display: none;">{{ b.content }}</textarea>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Action Buttons -->
+    <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary d-flex align-items-center gap-1" id="saveStignoreBtn"
+                {% if auth_enabled and not is_admin %}disabled title="Admin role required"{% else %}onclick="saveStignoreContent()"{% endif %}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm2 16H5V5h11.17L19 7.83V19zm-7-7c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zM6 6h9v4H6z"/>
+            </svg>
+            <span id="saveStignoreBtnText">Save .stignore</span>
+            <span class="spinner-border spinner-border-sm d-none" id="saveStignoreSpinner" role="status" aria-hidden="true"></span>
+        </button>
+    </div>
+</div>
+{% endif %}

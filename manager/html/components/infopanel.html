@@ -74,6 +74,23 @@
                                     {% endfor %}
                                 </form>
                             </button>
+                            {% if category_id %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-auto"
+                                    title="Edit .stignore file for '{{ category_id }}' on '{{ i.agent.name }}'"
+                                    onclick="openStignoreModal('{{ i.agent.name }}', '{{ category_id }}')">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                                </svg>
+                            </button>
+                            {% elif item_path and item_path | length > 0 %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-auto"
+                                    title="Edit .stignore file for '{{ item_path[0] }}' on '{{ i.agent.name }}'"
+                                    onclick="openStignoreModal('{{ i.agent.name }}', '{{ item_path[0] }}')">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                                </svg>
+                            </button>
+                            {% endif %}
                         </div>
 
                         <div class="mb-2 d-flex flex-wrap gap-1">

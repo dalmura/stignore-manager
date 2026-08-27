@@ -1537,6 +1537,372 @@ function reflowAndSortAllColumns(sortOrder) {
         sortDomListGroup(listGroup, order);
     });
 }
+
+// Full .stignore Editor Functions
+function openStignoreModal(agentName, categoryId) {
+    const modalEl = document.getElementById('stignoreModal');
+    const modalBody = document.getElementById('stignoreModalBody');
+    if (!modalEl || !modalBody) return;
+
+    if (!categoryId || !categoryId.trim()) {
+        showToast('Please select a category or item first to edit its .stignore file.', 'error');
+        return;
+    }
+
+    modalBody.innerHTML = `
+        <div class="text-center py-5 text-muted">
+            <div class="spinner-border text-primary me-2" role="status"></div>
+            <span>Loading .stignore for <strong>${escapeHtml(agentName)}</strong> / <code>${escapeHtml(categoryId)}</code>...</span>
+        </div>
+    `;
+
+    const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    bsModal.show();
+
+    fetch('/components/stignore-modal.html', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            agent_name: agentName,
+            category_id: categoryId
+        })
+    })
+    .then(res => res.text())
+    .then(html => {
+        modalBody.innerHTML = html;
+        handleStignoreInput();
+
+        // Format backup timestamps nicely in user's local timezone
+        modalBody.querySelectorAll('.backup-ts-label').forEach(el => {
+            const ts = parseInt(el.getAttribute('data-ts'), 10);
+            if (ts && ts > 0) {
+                const date = new Date(ts * 1000);
+                el.textContent = date.toLocaleString([], {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            }
+        });
+    })
+    .catch(err => {
+        modalBody.innerHTML = `
+            <div class="alert alert-danger m-3">
+                <strong>Error:</strong> Failed to connect to server to load .stignore (${escapeHtml(err.message || err)})
+            </div>
+        `;
+    });
+}
+
+function handleStignoreInput() {
+    const textarea = document.getElementById('stignoreTextarea');
+    if (!textarea) return;
+
+    const content = textarea.value;
+    const lines = content.split('\n');
+
+    let ruleCount = 0;
+    let commentCount = 0;
+    let includeCount = 0;
+    let hasInclusions = false;
+    const issues = [];
+
+    lines.forEach((rawLine, idx) => {
+        const lineNum = idx + 1;
+        const trimmed = rawLine.trim();
+
+        if (!trimmed) return;
+        if (trimmed.startsWith('//')) {
+            commentCount++;
+            return;
+        }
+        if (trimmed.startsWith('#include')) {
+            includeCount++;
+            if (trimmed.split(/\s+/).length < 2) {
+                issues.push({ line: lineNum, text: rawLine, type: 'danger', msg: 'Malformed #include directive: missing path' });
+            }
+            return;
+        }
+
+        ruleCount++;
+
+        if (trimmed.includes('\\')) {
+            issues.push({ line: lineNum, text: rawLine, type: 'warning', msg: "Contains backslash '\\'. Patterns should use forward slash '/'" });
+        }
+
+        const openBrackets = (trimmed.match(/\[/g) || []).length;
+        const closeBrackets = (trimmed.match(/\]/g) || []).length;
+        if (openBrackets !== closeBrackets) {
+            issues.push({ line: lineNum, text: rawLine, type: 'danger', msg: 'Mismatched square brackets (unclosed character class)' });
+        }
+
+        let pattern = trimmed;
+        while (pattern.startsWith('(?')) {
+            if (pattern.startsWith('(?d)') || pattern.startsWith('(?i)')) {
+                pattern = pattern.substring(4);
+            } else {
+                const end = pattern.indexOf(')');
+                const flag = end !== -1 ? pattern.substring(0, end + 1) : pattern;
+                issues.push({ line: lineNum, text: rawLine, type: 'danger', msg: `Unknown modifier '${flag}'. Only (?d) and (?i) are supported` });
+                break;
+            }
+        }
+
+        if (pattern.startsWith('!')) {
+            hasInclusions = true;
+            pattern = pattern.substring(1);
+        }
+
+        const clean = pattern.replace(/^\/+|\/+$/g, '');
+        if (clean === '.stfolder' || clean.startsWith('.stfolder/')) {
+            issues.push({ line: lineNum, text: rawLine, type: 'danger', msg: "Ignoring '.stfolder' breaks Syncthing folder health check" });
+        } else if (clean === '.stignore') {
+            issues.push({ line: lineNum, text: rawLine, type: 'warning', msg: "Ignoring '.stignore' itself may cause unexpected behavior" });
+        }
+
+        if ((clean === '*' || clean === '**' || pattern === '/' || pattern === './') && !hasInclusions) {
+            issues.push({ line: lineNum, text: rawLine, type: 'warning', msg: `Catch-all rule '${pattern}' will ignore everything in this folder` });
+        }
+    });
+
+    const ruleCountBadge = document.getElementById('stignoreRuleCount');
+    if (ruleCountBadge) ruleCountBadge.textContent = `${ruleCount} rules`;
+
+    const commentCountBadge = document.getElementById('stignoreCommentCount');
+    if (commentCountBadge) commentCountBadge.textContent = `${commentCount} comments`;
+
+    const includeCountBadge = document.getElementById('stignoreIncludeCount');
+    if (includeCountBadge) includeCountBadge.textContent = `${includeCount} includes`;
+
+    const pill = document.getElementById('stignoreValidationPill');
+    const issuesContainer = document.getElementById('stignoreIssuesContainer');
+
+    const hasErrors = issues.some(i => i.type === 'danger');
+    const hasWarnings = issues.some(i => i.type === 'warning');
+
+    if (pill) {
+        if (hasErrors) {
+            pill.className = 'badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill';
+            pill.textContent = `❌ ${issues.filter(i => i.type === 'danger').length} Error(s)`;
+        } else if (hasWarnings) {
+            pill.className = 'badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill';
+            pill.textContent = `⚠️ ${issues.length} Warning(s)`;
+        } else {
+            pill.className = 'badge bg-success-subtle text-success border border-success-subtle rounded-pill';
+            pill.textContent = '✓ Valid Syntax';
+        }
+    }
+
+    if (issuesContainer) {
+        if (issues.length > 0) {
+            issuesContainer.classList.remove('d-none');
+            issuesContainer.innerHTML = issues.map(iss => `
+                <div class="alert ${iss.type === 'danger' ? 'alert-danger' : 'alert-warning'} py-1 px-3 mb-1 small d-flex align-items-center justify-content-between">
+                    <div>
+                        <strong>Line ${iss.line}:</strong> ${escapeHtml(iss.msg)}
+                        <code class="ms-1 font-monospace bg-body-secondary px-1 py-0 rounded">${escapeHtml(iss.text)}</code>
+                    </div>
+                    <span class="badge ${iss.type === 'danger' ? 'bg-danger' : 'bg-warning text-dark'} text-uppercase">${iss.type === 'danger' ? 'error' : 'warning'}</span>
+                </div>
+            `).join('');
+        } else {
+            issuesContainer.classList.add('d-none');
+            issuesContainer.innerHTML = '';
+        }
+    }
+}
+
+function formatStignoreContent() {
+    const textarea = document.getElementById('stignoreTextarea');
+    if (!textarea) return;
+
+    const rawLines = textarea.value.split('\n');
+    const cleanedLines = [];
+    let lastWasEmpty = false;
+
+    rawLines.forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed === '') {
+            if (!lastWasEmpty && cleanedLines.length > 0) {
+                cleanedLines.push('');
+                lastWasEmpty = true;
+            }
+        } else {
+            cleanedLines.push(trimmed);
+            lastWasEmpty = false;
+        }
+    });
+
+    textarea.value = cleanedLines.join('\n') + (cleanedLines.length > 0 ? '\n' : '');
+    handleStignoreInput();
+    showToast('Cleaned up whitespace and empty lines', 'success');
+}
+
+function toggleStignoreDiff() {
+    const diffContainer = document.getElementById('stignoreDiffContainer');
+    const diffContent = document.getElementById('stignoreDiffContent');
+    const diffBtn = document.getElementById('stignoreDiffToggleBtn');
+    const originalContent = document.getElementById('stignoreOriginalContent')?.value || '';
+    const currentContent = document.getElementById('stignoreTextarea')?.value || '';
+
+    if (!diffContainer || !diffContent) return;
+
+    if (diffContainer.classList.contains('d-none')) {
+        diffContainer.classList.remove('d-none');
+        if (diffBtn) diffBtn.textContent = 'Hide Diff';
+
+        // Compute simple diff
+        const origLines = originalContent.split('\n');
+        const newLines = currentContent.split('\n');
+
+        let html = '';
+        let changeCount = 0;
+
+        const origMap = new Map();
+        origLines.forEach(l => origMap.set(l.trim(), (origMap.get(l.trim()) || 0) + 1));
+
+        const newMap = new Map();
+        newLines.forEach(l => newMap.set(l.trim(), (newMap.get(l.trim()) || 0) + 1));
+
+        newLines.forEach(line => {
+            const trimmed = line.trim();
+            if (trimmed && (!origMap.has(trimmed) || origMap.get(trimmed) <= 0)) {
+                changeCount++;
+                html += `<div class="text-success bg-success-subtle px-2 py-0 border-start border-3 border-success">+ ${escapeHtml(line)}</div>`;
+            } else {
+                if (origMap.has(trimmed)) {
+                    origMap.set(trimmed, origMap.get(trimmed) - 1);
+                }
+                html += `<div class="text-muted px-2 py-0">&nbsp;&nbsp;${escapeHtml(line)}</div>`;
+            }
+        });
+
+        origLines.forEach(line => {
+            const trimmed = line.trim();
+            if (trimmed && (!newMap.has(trimmed) || newMap.get(trimmed) <= 0)) {
+                changeCount++;
+                html += `<div class="text-danger bg-danger-subtle px-2 py-0 border-start border-3 border-danger">- ${escapeHtml(line)}</div>`;
+            } else if (newMap.has(trimmed)) {
+                newMap.set(trimmed, newMap.get(trimmed) - 1);
+            }
+        });
+
+        if (changeCount === 0) {
+            html = '<div class="text-muted font-italic py-2">No differences from current file on disk.</div>';
+        }
+
+        diffContent.innerHTML = html;
+    } else {
+        diffContainer.classList.add('d-none');
+        if (diffBtn) diffBtn.textContent = '🔍 View Diff';
+    }
+}
+
+function saveStignoreContent() {
+    const agentName = document.getElementById('stignoreAgentName')?.value;
+    const categoryId = document.getElementById('stignoreCategoryId')?.value;
+    const expectedHash = document.getElementById('stignoreExpectedHash')?.value;
+    const textarea = document.getElementById('stignoreTextarea');
+    const saveBtn = document.getElementById('saveStignoreBtn');
+    const saveBtnText = document.getElementById('saveStignoreBtnText');
+    const saveSpinner = document.getElementById('saveStignoreSpinner');
+
+    if (!agentName || !categoryId || !textarea) return;
+
+    const content = textarea.value;
+
+    if (saveBtn) saveBtn.disabled = true;
+    if (saveBtnText) saveBtnText.textContent = 'Saving...';
+    if (saveSpinner) saveSpinner.classList.remove('d-none');
+
+    fetch('/components/stignore/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            agent_name: agentName,
+            category_id: categoryId,
+            content: content,
+            expected_hash: expectedHash
+        })
+    })
+    .then(res => res.json().then(data => ({ status: res.status, data })))
+    .then(({ status, data }) => {
+        if (saveBtn) saveBtn.disabled = false;
+        if (saveBtnText) saveBtnText.textContent = 'Save .stignore';
+        if (saveSpinner) saveSpinner.classList.add('d-none');
+
+        if (status === 200 && data.success) {
+            let msg = `Successfully updated .stignore on ${escapeHtml(agentName)}`;
+            if (data.backup_created) {
+                msg += ` (backup: ${escapeHtml(data.backup_created)})`;
+            }
+            showToast(msg, 'success');
+
+            // Update state
+            const origContentInput = document.getElementById('stignoreOriginalContent');
+            if (origContentInput) origContentInput.value = content;
+
+            const expectedHashInput = document.getElementById('stignoreExpectedHash');
+            if (expectedHashInput) expectedHashInput.value = data.new_hash;
+
+            const hashBadge = document.getElementById('stignoreHashBadge');
+            if (hashBadge) hashBadge.textContent = `#${data.new_hash}`;
+
+            // Close modal
+            const modalEl = document.getElementById('stignoreModal');
+            if (modalEl) {
+                const bsModal = bootstrap.Modal.getInstance(modalEl);
+                if (bsModal) bsModal.hide();
+            }
+
+            if (typeof refreshItemData === 'function') {
+                refreshItemData();
+            }
+        } else if (status === 409 || data.conflict) {
+            showToast(data.message || 'Conflict: File was modified on disk by another process!', 'error');
+            toggleStignoreDiff();
+        } else {
+            showToast(data.message || 'Failed to save .stignore', 'error');
+        }
+    })
+    .catch(err => {
+        if (saveBtn) saveBtn.disabled = false;
+        if (saveBtnText) saveBtnText.textContent = 'Save .stignore';
+        if (saveSpinner) saveSpinner.classList.add('d-none');
+
+        showToast('Failed to connect to server to save .stignore.', 'error');
+        console.error('Save .stignore failed:', err);
+    });
+}
+
+function loadStignoreBackup(backupFilename) {
+    const backupEl = document.getElementById(`stignore-backup-content-${backupFilename}`);
+    if (!backupEl) {
+        showToast(`Backup '${backupFilename}' content not found in modal`, 'error');
+        return;
+    }
+
+    const textarea = document.getElementById('stignoreTextarea');
+    if (textarea) {
+        textarea.value = backupEl.value;
+        handleStignoreInput();
+
+        // If diff container is open, refresh diff preview against active disk version
+        const diffContainer = document.getElementById('stignoreDiffContainer');
+        if (diffContainer && !diffContainer.classList.contains('d-none')) {
+            diffContainer.classList.add('d-none');
+            toggleStignoreDiff();
+        }
+
+        showToast(`Loaded backup '${backupFilename}' into editor. Review and click 'Save .stignore' to apply.`, 'info');
+    }
+}
+
+function restoreStignoreBackup(backupFilename) {
+    loadStignoreBackup(backupFilename);
+}
 </script>
 
 
