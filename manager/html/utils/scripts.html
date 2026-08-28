@@ -1105,25 +1105,45 @@ function clearSearchInput() {
 }
 
 function applySearchAndFilter() {
+    // If active facet filter button is not present in DOM (e.g. no conflicts or no active sync), fall back to 'all'
+    if (activeFacetFilter !== 'all' && !document.querySelector(`.filter-pill-btn[data-filter="${activeFacetFilter}"]`)) {
+        activeFacetFilter = 'all';
+        const allBtn = document.querySelector('.filter-pill-btn[data-filter="all"]');
+        if (allBtn) {
+            document.querySelectorAll('.filter-pill-btn').forEach(btn => btn.classList.remove('active'));
+            allBtn.classList.add('active');
+        }
+    }
+
     const searchInput = document.getElementById('globalSearchInput');
     const query = searchInput ? searchInput.value.trim() : '';
 
     let totalVisible = 0;
     let totalItems = 0;
 
+    function checkFacetMatch(el) {
+        const isInsufficient = el.getAttribute('data-insufficient') === 'true' || el.classList.contains('list-group-item-warning');
+        const hasConflicts = el.getAttribute('data-conflicts') === 'true';
+        const isSyncing = el.getAttribute('data-syncing') === 'true';
+
+        if (activeFacetFilter === 'conflicts') {
+            return hasConflicts;
+        } else if (activeFacetFilter === 'syncing') {
+            return isSyncing;
+        } else if (activeFacetFilter === 'insufficient') {
+            return isInsufficient;
+        } else if (activeFacetFilter === 'synced') {
+            return !isInsufficient;
+        }
+        return true; // 'all'
+    }
+
     // Process Level 1 items
     const parentItems = document.querySelectorAll('#parentList > a');
     parentItems.forEach(el => {
         totalItems++;
         const name = el.getAttribute('data-name') || el.innerText.trim();
-        const isInsufficient = el.getAttribute('data-insufficient') === 'true' || el.classList.contains('list-group-item-warning');
-
-        let passesFacet = true;
-        if (activeFacetFilter === 'insufficient') {
-            passesFacet = isInsufficient;
-        } else if (activeFacetFilter === 'synced') {
-            passesFacet = !isInsufficient;
-        }
+        const passesFacet = checkFacetMatch(el);
 
         const matchResult = fuzzyMatch(name, query);
         const titleEl = el.querySelector('.item-title') || el.querySelector('span:not(.badge)');
@@ -1146,14 +1166,7 @@ function applySearchAndFilter() {
     const dynamicItems = document.querySelectorAll('#sub1List a, #sub2List a');
     dynamicItems.forEach(el => {
         const name = el.getAttribute('data-name') || el.innerText.trim();
-        const isInsufficient = el.getAttribute('data-insufficient') === 'true' || el.classList.contains('list-group-item-warning');
-
-        let passesFacet = true;
-        if (activeFacetFilter === 'insufficient') {
-            passesFacet = isInsufficient;
-        } else if (activeFacetFilter === 'synced') {
-            passesFacet = !isInsufficient;
-        }
+        const passesFacet = checkFacetMatch(el);
 
         const matchResult = fuzzyMatch(name, query);
         const titleEl = el.querySelector('.item-title') || el.querySelector('span:not(.badge)');
@@ -1175,7 +1188,13 @@ function applySearchAndFilter() {
     const countBadge = document.getElementById('searchResultCount');
     if (countBadge) {
         if (query !== '' || activeFacetFilter !== 'all') {
-            countBadge.textContent = `Showing ${totalVisible} of ${totalItems} categories`;
+            let filterLabel = '';
+            if (activeFacetFilter === 'conflicts') filterLabel = ' with conflicts';
+            else if (activeFacetFilter === 'syncing') filterLabel = ' syncing';
+            else if (activeFacetFilter === 'insufficient') filterLabel = ' with insufficient copies';
+            else if (activeFacetFilter === 'synced') filterLabel = ' synced';
+
+            countBadge.textContent = `Showing ${totalVisible} of ${totalItems} categories${filterLabel}`;
             countBadge.classList.remove('d-none');
         } else {
             countBadge.classList.add('d-none');

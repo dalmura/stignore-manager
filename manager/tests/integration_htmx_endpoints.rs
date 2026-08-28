@@ -1150,3 +1150,199 @@ async fn test_stignore_validate_endpoint() {
     assert_eq!(json["report"]["comment_count"], 1);
     assert_eq!(json["report"]["include_count"], 1);
 }
+
+#[tokio::test]
+async fn test_itemlist_filters_hidden_when_no_conflicts_or_syncing() {
+    let mock_server = setup_mock_agent_server().await;
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let response = server.get("/components/itemlist.html").await;
+    response.assert_status_ok();
+    // In default mock without conflicts/syncing, these buttons should not appear
+    let text = response.text();
+    assert!(!text.contains("data-filter=\"conflicts\""));
+    assert!(!text.contains("data-filter=\"syncing\""));
+    assert!(text.contains("data-filter=\"all\""));
+    assert!(text.contains("data-filter=\"insufficient\""));
+    assert!(text.contains("data-filter=\"synced\""));
+}
+
+#[tokio::test]
+async fn test_itemlist_component_renders_conflict_and_syncing_filters_when_present() {
+    let mock_server = MockServer::start().await;
+
+    let cat_resp = AgentCategoryListingResponse {
+        items: vec![ItemGroup {
+            id: "Movies".to_string(),
+            name: "Movies".to_string(),
+            size_kb: 1024,
+            items: vec![],
+            leaf: false,
+            copy_count: 1,
+            has_conflicts: true,
+            conflict_count: 1,
+            is_syncing: true,
+            ..Default::default()
+        }],
+    };
+
+    Mock::given(method("GET"))
+        .and(path("/api/v1/categories"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&cat_resp))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let response = server.get("/components/itemlist.html").await;
+    response.assert_status_ok();
+    response.assert_text_contains("data-filter=\"conflicts\"");
+    response.assert_text_contains("data-filter=\"syncing\"");
+    response.assert_text_contains("data-conflicts=");
+    response.assert_text_contains("data-syncing=");
+}
+
+#[tokio::test]
+async fn test_infopanel_with_conflicts_and_syncing_renders_alerts() {
+    let mock_server = MockServer::start().await;
+
+    let item_with_conflict = ItemGroup {
+        id: "Movies/Action/movie.mkv".to_string(),
+        name: "movie.mkv".to_string(),
+        size_kb: 2048,
+        items: vec![],
+        leaf: true,
+        copy_count: 1,
+        has_conflicts: true,
+        conflict_count: 2,
+        is_syncing: true,
+        stversions_size_kb: 512,
+        stfolder_present: true,
+    };
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/items"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(AgentItemInfoResponse {
+                item: item_with_conflict,
+            }),
+        )
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/ignore-status-bulk"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "items": [{"ignored": false}]
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let request_body = json!({
+        "category_id": "Movies",
+        "item_path": ["Movies", "Action", "movie.mkv"]
+    });
+
+    let response = server
+        .post("/components/infopanel.html")
+        .json(&request_body)
+        .await;
+
+    response.assert_status_ok();
+    response.assert_text_contains("Sync Conflicts Detected");
+    response.assert_text_contains("2 conflict file(s) found");
+    response.assert_text_contains("Active Sync in Progress");
+}
+
+#[tokio::test]
+async fn test_agent_modal_renders_conflict_and_syncing_badges() {
+    let mock_server = MockServer::start().await;
+
+    let parent_with_conflict_child = ItemGroup {
+        id: "Movies/Action".to_string(),
+        name: "Action".to_string(),
+        size_kb: 4096,
+        items: vec![
+            ItemGroup {
+                id: "movie.sync-conflict-20230101.mkv".to_string(),
+                name: "movie.sync-conflict-20230101.mkv".to_string(),
+                size_kb: 2048,
+                items: vec![],
+                leaf: true,
+                copy_count: 1,
+                has_conflicts: true,
+                conflict_count: 1,
+                is_syncing: false,
+                ..Default::default()
+            },
+            ItemGroup {
+                id: "movie_transfer.mkv".to_string(),
+                name: "movie_transfer.mkv".to_string(),
+                size_kb: 2048,
+                items: vec![],
+                leaf: true,
+                copy_count: 1,
+                has_conflicts: false,
+                conflict_count: 0,
+                is_syncing: true,
+                ..Default::default()
+            },
+        ],
+        leaf: false,
+        copy_count: 1,
+        has_conflicts: true,
+        conflict_count: 1,
+        is_syncing: true,
+        stversions_size_kb: 0,
+        stfolder_present: true,
+    };
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/items"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(AgentItemInfoResponse {
+                item: parent_with_conflict_child,
+            }),
+        )
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/ignore-status-bulk"))
+        .and(header("X-API-Key", "test-key-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "items": [{"ignored": false}]
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let config = create_test_config_with_mock_server(&mock_server.uri());
+    let app = create_test_app(config);
+    let server = TestServer::new(app).unwrap();
+
+    let request_body = json!({
+        "agent_name": "test-agent-1",
+        "item_path": ["Movies", "Action"]
+    });
+
+    let response = server
+        .post("/components/agent-modal.html")
+        .json(&request_body)
+        .await;
+
+    response.assert_status_ok();
+    response.assert_text_contains("⚠️ Conflict");
+    response.assert_text_contains("Syncing in progress");
+}

@@ -4,10 +4,16 @@
             <div class="d-flex align-items-center gap-3">
                 <h2 class="mb-0">File Browser</h2>
                 {% if items and items | length > 0 %}
-                <div class="btn-group btn-group-sm" role="group" aria-label="Filter status">
+                <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Filter status">
                     <button type="button" class="btn btn-outline-secondary filter-pill-btn active" data-filter="all" onclick="setFacetFilter('all')">All Items</button>
-                    <button type="button" class="btn btn-outline-warning filter-pill-btn" data-filter="insufficient" onclick="setFacetFilter('insufficient')">⚠️ Insufficient Copies</button>
-                    <button type="button" class="btn btn-outline-success filter-pill-btn" data-filter="synced" onclick="setFacetFilter('synced')">✓ Synced</button>
+                    {% if has_any_conflicts %}
+                    <button type="button" class="btn btn-outline-danger filter-pill-btn" data-filter="conflicts" onclick="setFacetFilter('conflicts')" title="Filter items with sync conflicts">⚠️ Conflicts</button>
+                    {% endif %}
+                    {% if has_any_syncing %}
+                    <button type="button" class="btn btn-outline-info filter-pill-btn" data-filter="syncing" onclick="setFacetFilter('syncing')" title="Filter items actively syncing">🔄 Syncing</button>
+                    {% endif %}
+                    <button type="button" class="btn btn-outline-warning filter-pill-btn" data-filter="insufficient" onclick="setFacetFilter('insufficient')" title="Filter items with fewer copies than minimum">⚠️ Insufficient Copies</button>
+                    <button type="button" class="btn btn-outline-success filter-pill-btn" data-filter="synced" onclick="setFacetFilter('synced')" title="Filter items meeting minimum copies">✓ Synced</button>
                 </div>
                 {% endif %}
             </div>
@@ -34,6 +40,8 @@
                 data-bs-toggle="list"
                 data-name="{{ i.name }}"
                 data-insufficient="{{ i.has_insufficient_copies }}"
+                data-conflicts="{{ i.has_conflicts }}"
+                data-syncing="{{ i.is_syncing }}"
                 href="#list-sub1-{{ i.safe_id }}"
                 role="tab"
                 hx-post="/components/infopanel.html"
@@ -54,7 +62,7 @@
                     </span>
                     {% endif %}
                     {% if i.has_conflicts %}
-                    <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill small" title="{{ i.conflict_count | default(value=1) }} sync conflict(s)">⚠️</span>
+                    <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill small" title="{{ i.conflict_count | default(value=1) }} sync conflict(s)">⚠️{% if i.conflict_count and i.conflict_count > 1 %} {{ i.conflict_count }}{% endif %}</span>
                     {% endif %}
                     <span class="badge bg-secondary-subtle text-body-secondary rounded-pill font-monospace small" title="Total size: {{ i.size_kb | humansize }}">{{ i.size_kb | humansize }}</span>
                     <span class="badge text-bg-primary rounded-pill" title="{{ i.items | length }} items">{{ i.items | length }}</span>

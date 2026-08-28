@@ -48,6 +48,26 @@
                 </div>
             </div>
             {% endif %}
+            {% if item and (item.has_conflicts or item.is_syncing) %}
+            <div class="px-3 pt-3 pb-0">
+                {% if item.has_conflicts %}
+                <div class="alert alert-danger py-2 mb-2 d-flex align-items-center justify-content-between small">
+                    <div class="d-flex align-items-center">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="me-2 flex-shrink-0 text-danger">
+                            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                        </svg>
+                        <span><strong>Sync Conflicts Detected:</strong> {% if item.conflict_count and item.conflict_count > 0 %}{{ item.conflict_count }}{% else %}1 or more{% endif %} conflict file(s) found. Check agent details or subfolder items to inspect conflicting versions.</span>
+                    </div>
+                </div>
+                {% endif %}
+                {% if item.is_syncing %}
+                <div class="alert alert-info py-2 mb-2 d-flex align-items-center small">
+                    <span class="spinner-border spinner-border-sm me-2 text-info flex-shrink-0" role="status" aria-hidden="true"></span>
+                    <span><strong>Active Sync in Progress:</strong> Syncthing is currently transferring files in this folder.</span>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
             <div class="card-body p-0">
                 <div class="row g-0">
                 {% for i in agent_items %}

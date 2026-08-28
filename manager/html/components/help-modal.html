@@ -112,6 +112,7 @@
                                 <li class="mb-1"><strong>Ignore Item:</strong> Appends the relative item path to the agent's <code>.stignore</code> file, excluding it from Syncthing cluster synchronization.</li>
                                 <li class="mb-1"><strong>Unignore Item:</strong> Safely removes the rule from <code>.stignore</code>, resuming sync for that path.</li>
                                 <li class="mb-1"><strong>Copy Count &amp; Threshold:</strong> Tracks how many agents hold a copy of each file against the configured <code>minimum_copies</code> threshold. Items with insufficient copies are flagged with ⚠️.</li>
+                                <li class="mb-1"><strong>Sync Conflicts &amp; Active Transfers:</strong> Detects <code>*.sync-conflict-*</code> files and in-flight <code>.syncthing.*</code> transfers. Use the <strong>⚠️ Conflicts</strong> and <strong>🔄 Syncing</strong> filter pills to immediately isolate sync issues.</li>
                                 <li><strong>Bulk Actions:</strong> Use the multi-agent selection checkboxes in the item details inspector to apply ignore, unignore, or deletion operations simultaneously.</li>
                             </ul>
                         </div>

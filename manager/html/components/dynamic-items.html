@@ -12,6 +12,8 @@
         data-name="{{ item.name }}"
         data-size-kb="{{ item.size_kb }}"
         data-insufficient="{{ item.has_insufficient_copies }}"
+        data-conflicts="{{ item.has_conflicts }}"
+        data-syncing="{{ item.is_syncing }}"
         {% if level == 2 %}data-safe-id="{{ item.safe_id }}" data-category-id="{{ parent_id }}"{% endif %}
 >
     <div class="d-flex align-items-center text-truncate me-2">
@@ -39,7 +41,7 @@
         </span>
         {% endif %}
         {% if item.has_conflicts %}
-        <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill small" title="{{ item.conflict_count | default(value=1) }} sync conflict(s)">⚠️</span>
+        <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill small" title="{{ item.conflict_count | default(value=1) }} sync conflict(s)">⚠️{% if item.conflict_count and item.conflict_count > 1 %} {{ item.conflict_count }}{% endif %}</span>
         {% endif %}
         <span class="badge bg-secondary-subtle text-body-secondary rounded-pill font-monospace small" title="Total size: {{ item.size_kb | humansize }}">{{ item.size_kb | humansize }}</span>
         {% if item.items | length > 0 %}

@@ -114,8 +114,12 @@ async fn itemlist(State(state): State<AppState>, auth_user: AuthUser) -> impl In
         .map(|item| convert_item_with_flags(item, state.config.manager.minimum_copies))
         .collect();
 
-    context.insert("items", &items_with_flags);
+    let has_any_conflicts = items_with_flags.iter().any(|i| i.has_conflicts);
+    let has_any_syncing = items_with_flags.iter().any(|i| i.is_syncing);
 
+    context.insert("items", &items_with_flags);
+    context.insert("has_any_conflicts", &has_any_conflicts);
+    context.insert("has_any_syncing", &has_any_syncing);
     context.insert("minimum_copies", &state.config.manager.minimum_copies);
 
     RenderHtml(
@@ -195,6 +199,8 @@ struct MergedItem {
     size_kb: u64,
     items: usize,
     is_partial: bool,
+    has_conflicts: bool,
+    is_syncing: bool,
 }
 
 fn collect_all_item_ids(item_group: &ItemGroup) -> HashSet<String> {
@@ -451,6 +457,10 @@ async fn agent_modal(
                     let max_size = max_sizes.get(&item_name).unwrap_or(&0);
                     let is_partial =
                         current_agent_item.is_some() && current_size < *max_size && *max_size > 0;
+                    let is_conflict = current_agent_item
+                        .map(|i| i.has_conflicts || i.name.contains(".sync-conflict-"))
+                        .unwrap_or_else(|| item_name.contains(".sync-conflict-"));
+                    let is_syncing = current_agent_item.map(|i| i.is_syncing).unwrap_or(false);
 
                     merged_items.push(MergedItem {
                         name: item_name.to_string(),
@@ -458,6 +468,8 @@ async fn agent_modal(
                         size_kb: current_size,
                         items: current_agent_item.map(|i| i.items.len()).unwrap_or(0),
                         is_partial,
+                        has_conflicts: is_conflict,
+                        is_syncing,
                     });
                 }
 
