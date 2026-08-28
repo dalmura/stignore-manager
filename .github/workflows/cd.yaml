@@ -34,14 +34,12 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: rustfmt
+          cache: false
       - name: Rustfmt Check
         run: cargo fmt --check
 
   tests:
     runs-on: ubuntu-24.04
-    needs:
-      - clippy
-      - rustfmt
 
     steps:
       - uses: actions/checkout@v5
@@ -51,7 +49,10 @@ jobs:
 
   build_container:
     runs-on: ${{ matrix.runner }}
-    needs: tests
+    needs:
+      - clippy
+      - rustfmt
+      - tests
     strategy:
       matrix:
         include:
@@ -92,8 +93,8 @@ jobs:
           tags: |
             ghcr.io/dalmura/stignore-manager:build-${{ steps.versions.outputs.version }}-${{ matrix.arch }}
           target: manager
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=manager-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=manager-${{ matrix.arch }}
 
       - name: Build and push agent
         id: docker_build_agent
@@ -104,8 +105,8 @@ jobs:
           tags: |
             ghcr.io/dalmura/stignore-agent:build-${{ steps.versions.outputs.version }}-${{ matrix.arch }}
           target: agent
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=agent-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=agent-${{ matrix.arch }}
 
   merge_and_publish:
     runs-on: ubuntu-24.04
@@ -149,6 +150,8 @@ jobs:
   release:
     runs-on: ubuntu-24.04
     needs:
+      - clippy
+      - rustfmt
       - tests
       - merge_and_publish
 
