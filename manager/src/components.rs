@@ -248,8 +248,12 @@ async fn check_ignored_status_bulk(
         (category_id, folder_path)
     };
 
-    // Create one bulk request per agent
+    let mut set = tokio::task::JoinSet::new();
+
+    // Create one bulk request per agent concurrently
     for (agent, _) in agent_items {
+        let client = agent_client.clone();
+        let agent_clone = agent.clone();
         let bulk_request = AgentBulkIgnoreStatusRequest {
             items: vec![AgentIgnoreStatusRequest {
                 category_id: category_id.clone(),
@@ -257,21 +261,25 @@ async fn check_ignored_status_bulk(
             }],
         };
 
-        match agent_client
-            .check_ignore_status_bulk(agent, &bulk_request)
-            .await
-        {
-            Ok(bulk_response) => {
-                // For this simple case, we only sent one item so take the first result
-                if let Some(first_result) = bulk_response.items.first() {
-                    results.insert(agent.name.clone(), first_result.ignored);
-                } else {
-                    results.insert(agent.name.clone(), false);
-                }
-            }
-            Err(_) => {
-                results.insert(agent.name.clone(), false);
-            }
+        set.spawn(async move {
+            let is_ignored = match client
+                .check_ignore_status_bulk(&agent_clone, &bulk_request)
+                .await
+            {
+                Ok(bulk_response) => bulk_response
+                    .items
+                    .first()
+                    .map(|r| r.ignored)
+                    .unwrap_or(false),
+                Err(_) => false,
+            };
+            (agent_clone.name, is_ignored)
+        });
+    }
+
+    while let Some(res) = set.join_next().await {
+        if let Ok((agent_name, is_ignored)) = res {
+            results.insert(agent_name, is_ignored);
         }
     }
 
@@ -1065,34 +1073,61 @@ async fn bulk_ignore_item(
         folder_path,
     };
 
-    let mut results = Vec::new();
-    let mut overall_success = true;
-
-    for agent_name in &payload.agent_names {
-        if let Some(agent) = state.config.agents.iter().find(|a| &a.name == agent_name) {
-            match state.agent_client.ignore_item(agent, &ignore_request).await {
-                Ok(_) => results.push(BulkActionResult {
-                    agent_name: agent_name.clone(),
-                    success: true,
-                    message: format!("Ignored item on {}", agent_name),
-                }),
-                Err(e) => {
-                    overall_success = false;
-                    results.push(BulkActionResult {
+    let mut set = tokio::task::JoinSet::new();
+    for (index, agent_name) in payload.agent_names.into_iter().enumerate() {
+        if let Some(agent) = state
+            .config
+            .agents
+            .iter()
+            .find(|a| a.name == agent_name)
+            .cloned()
+        {
+            let client = state.agent_client.clone();
+            let req = ignore_request.clone();
+            set.spawn(async move {
+                let res = match client.ignore_item(&agent, &req).await {
+                    Ok(_) => BulkActionResult {
+                        agent_name: agent_name.clone(),
+                        success: true,
+                        message: format!("Ignored item on {}", agent_name),
+                    },
+                    Err(e) => BulkActionResult {
                         agent_name: agent_name.clone(),
                         success: false,
                         message: format!("Failed on {}: {}", agent_name, e),
-                    });
-                }
-            }
+                    },
+                };
+                (index, res)
+            });
         } else {
-            overall_success = false;
-            results.push(BulkActionResult {
-                agent_name: agent_name.clone(),
-                success: false,
-                message: format!("Agent '{}' not found", agent_name),
+            set.spawn(async move {
+                (
+                    index,
+                    BulkActionResult {
+                        agent_name: agent_name.clone(),
+                        success: false,
+                        message: format!("Agent '{}' not found", agent_name),
+                    },
+                )
             });
         }
+    }
+
+    let mut indexed_results = Vec::new();
+    while let Some(res) = set.join_next().await {
+        if let Ok(res_item) = res {
+            indexed_results.push(res_item);
+        }
+    }
+    indexed_results.sort_by_key(|(idx, _)| *idx);
+
+    let mut results = Vec::new();
+    let mut overall_success = true;
+    for (_idx, res) in indexed_results {
+        if !res.success {
+            overall_success = false;
+        }
+        results.push(res);
     }
 
     Json(BulkActionResponse {
@@ -1154,38 +1189,61 @@ async fn bulk_unignore_item(
         folder_path,
     };
 
-    let mut results = Vec::new();
-    let mut overall_success = true;
-
-    for agent_name in &payload.agent_names {
-        if let Some(agent) = state.config.agents.iter().find(|a| &a.name == agent_name) {
-            match state
-                .agent_client
-                .unignore_item(agent, &unignore_request)
-                .await
-            {
-                Ok(_) => results.push(BulkActionResult {
-                    agent_name: agent_name.clone(),
-                    success: true,
-                    message: format!("Un-ignored item on {}", agent_name),
-                }),
-                Err(e) => {
-                    overall_success = false;
-                    results.push(BulkActionResult {
+    let mut set = tokio::task::JoinSet::new();
+    for (index, agent_name) in payload.agent_names.into_iter().enumerate() {
+        if let Some(agent) = state
+            .config
+            .agents
+            .iter()
+            .find(|a| a.name == agent_name)
+            .cloned()
+        {
+            let client = state.agent_client.clone();
+            let req = unignore_request.clone();
+            set.spawn(async move {
+                let res = match client.unignore_item(&agent, &req).await {
+                    Ok(_) => BulkActionResult {
+                        agent_name: agent_name.clone(),
+                        success: true,
+                        message: format!("Un-ignored item on {}", agent_name),
+                    },
+                    Err(e) => BulkActionResult {
                         agent_name: agent_name.clone(),
                         success: false,
                         message: format!("Failed on {}: {}", agent_name, e),
-                    });
-                }
-            }
+                    },
+                };
+                (index, res)
+            });
         } else {
-            overall_success = false;
-            results.push(BulkActionResult {
-                agent_name: agent_name.clone(),
-                success: false,
-                message: format!("Agent '{}' not found", agent_name),
+            set.spawn(async move {
+                (
+                    index,
+                    BulkActionResult {
+                        agent_name: agent_name.clone(),
+                        success: false,
+                        message: format!("Agent '{}' not found", agent_name),
+                    },
+                )
             });
         }
+    }
+
+    let mut indexed_results = Vec::new();
+    while let Some(res) = set.join_next().await {
+        if let Ok(res_item) = res {
+            indexed_results.push(res_item);
+        }
+    }
+    indexed_results.sort_by_key(|(idx, _)| *idx);
+
+    let mut results = Vec::new();
+    let mut overall_success = true;
+    for (_idx, res) in indexed_results {
+        if !res.success {
+            overall_success = false;
+        }
+        results.push(res);
     }
 
     Json(BulkActionResponse {
@@ -1250,10 +1308,6 @@ async fn bulk_delete_item(
         folder_path: folder_path.clone(),
     };
 
-    let mut results = Vec::new();
-    let mut overall_success = true;
-    let mut successful_deletions = HashSet::new();
-
     // Check which agents currently hold this item before deletion
     let disabled_agents = state.disabled_agents.read().unwrap().clone();
     let item_path_refs: Vec<&str> = filtered_item_path.iter().map(AsRef::as_ref).collect();
@@ -1274,42 +1328,82 @@ async fn bulk_delete_item(
         Err(_) => payload.agent_names.iter().cloned().collect(),
     };
 
-    for agent_name in &payload.agent_names {
-        if let Some(agent) = state.config.agents.iter().find(|a| &a.name == agent_name) {
-            match state.agent_client.delete_item(agent, &delete_request).await {
-                Ok(_) => {
-                    successful_deletions.insert(agent_name.clone());
-                    results.push(BulkActionResult {
-                        agent_name: agent_name.clone(),
-                        success: true,
-                        message: format!("Deleted item on {}", agent_name),
-                    });
-                }
-                Err(e) if e.is_not_found() => {
-                    successful_deletions.insert(agent_name.clone());
-                    results.push(BulkActionResult {
-                        agent_name: agent_name.clone(),
-                        success: true,
-                        message: format!("Item was already absent on {} (skipped)", agent_name),
-                    });
-                }
-                Err(e) => {
-                    overall_success = false;
-                    results.push(BulkActionResult {
+    let mut set = tokio::task::JoinSet::new();
+    for (index, agent_name) in payload.agent_names.into_iter().enumerate() {
+        if let Some(agent) = state
+            .config
+            .agents
+            .iter()
+            .find(|a| a.name == agent_name)
+            .cloned()
+        {
+            let client = state.agent_client.clone();
+            let req = delete_request.clone();
+            set.spawn(async move {
+                let (res, deleted) = match client.delete_item(&agent, &req).await {
+                    Ok(_) => (
+                        BulkActionResult {
+                            agent_name: agent_name.clone(),
+                            success: true,
+                            message: format!("Deleted item on {}", agent_name),
+                        },
+                        true,
+                    ),
+                    Err(e) if e.is_not_found() => (
+                        BulkActionResult {
+                            agent_name: agent_name.clone(),
+                            success: true,
+                            message: format!("Item was already absent on {} (skipped)", agent_name),
+                        },
+                        true,
+                    ),
+                    Err(e) => (
+                        BulkActionResult {
+                            agent_name: agent_name.clone(),
+                            success: false,
+                            message: format!("Failed on {}: {}", agent_name, e),
+                        },
+                        false,
+                    ),
+                };
+                (index, agent_name, res, deleted)
+            });
+        } else {
+            set.spawn(async move {
+                (
+                    index,
+                    agent_name.clone(),
+                    BulkActionResult {
                         agent_name: agent_name.clone(),
                         success: false,
-                        message: format!("Failed on {}: {}", agent_name, e),
-                    });
-                }
-            }
-        } else {
-            overall_success = false;
-            results.push(BulkActionResult {
-                agent_name: agent_name.clone(),
-                success: false,
-                message: format!("Agent '{}' not found", agent_name),
+                        message: format!("Agent '{}' not found", agent_name),
+                    },
+                    false,
+                )
             });
         }
+    }
+
+    let mut indexed_results = Vec::new();
+    while let Some(res) = set.join_next().await {
+        if let Ok(res_item) = res {
+            indexed_results.push(res_item);
+        }
+    }
+    indexed_results.sort_by_key(|(idx, _, _, _)| *idx);
+
+    let mut results = Vec::new();
+    let mut overall_success = true;
+    let mut successful_deletions = HashSet::new();
+
+    for (_idx, agent_name, res, deleted) in indexed_results {
+        if !res.success {
+            overall_success = false;
+        }
+        if deleted {
+            successful_deletions.insert(agent_name);
+        }
+        results.push(res);
     }
 
     // Check if all agents that held the item succeeded in deleting

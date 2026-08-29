@@ -72,35 +72,56 @@ function refreshAgentStatusPill() {
 }
 
 function showToast(message, type = 'success', options = {}) {
-    const toastContainer = document.querySelector('.toast-container');
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        document.body.appendChild(toastContainer);
+    }
     const toastId = 'toast-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
 
-    const bgClass = type === 'success' ? 'bg-dark text-white border-success' : 'bg-dark text-white border-danger';
-    const headerBg = type === 'success' ? 'text-success' : 'text-danger';
-    const icon = type === 'success' ? '✓' : '✕';
+    const normType = (type === 'error' || type === 'danger') ? 'error' : (type === 'warning' ? 'warning' : (type === 'info' ? 'info' : 'success'));
+    const title = options.title || (normType === 'success' ? 'Success' : (normType === 'error' ? 'Error' : (normType === 'warning' ? 'Warning' : 'Notice')));
+
+    let iconSvg = '';
+    if (normType === 'success') {
+        iconSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    } else if (normType === 'error') {
+        iconSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+    } else if (normType === 'warning') {
+        iconSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+    } else {
+        iconSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+    }
 
     let actionButtonHtml = '';
     if (options.actionText && typeof options.onAction === 'function') {
         actionButtonHtml = `
-            <div class="mt-2 pt-2 border-top border-secondary d-flex justify-content-between align-items-center">
-                <span class="small text-muted">Undo action?</span>
-                <button type="button" class="btn btn-sm btn-outline-warning text-white fw-bold toast-action-btn">
-                    ↩ ${escapeHtml(options.actionText)}
+            <div class="mt-2 pt-1 d-flex align-items-center gap-2">
+                <button type="button" class="toast-action-btn">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                    ${escapeHtml(options.actionText)}
                 </button>
             </div>
         `;
     }
 
     const toastHtml = `
-        <div id="${toastId}" class="toast ${bgClass} shadow-lg border" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header bg-dark ${headerBg} border-0">
-                <strong class="me-auto">${icon} ${type === 'success' ? 'Success' : 'Notice'}</strong>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+        <div id="${toastId}" class="toast custom-toast custom-toast-${normType}" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-icon-wrapper">
+                ${iconSvg}
             </div>
-            <div class="toast-body">
-                <div>${message}</div>
+            <div class="toast-content-wrapper">
+                <div class="toast-title">${escapeHtml(title)}</div>
+                <div class="toast-message">${message}</div>
                 ${actionButtonHtml}
             </div>
+            <button type="button" class="toast-close-btn" data-bs-dismiss="toast" aria-label="Close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
         </div>
     `;
 
@@ -119,7 +140,7 @@ function showToast(message, type = 'success', options = {}) {
         }
     }
 
-    const delay = options.delay || (options.actionText ? 8000 : (type === 'success' ? 4000 : 6000));
+    const delay = options.delay || (options.actionText ? 8000 : (normType === 'success' ? 3500 : 5000));
 
     const toast = new bootstrap.Toast(toastElement, {
         autohide: true,

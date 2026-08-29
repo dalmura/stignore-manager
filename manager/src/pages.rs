@@ -4,7 +4,6 @@ use axum_template::{Key, RenderHtml};
 use serde::Serialize;
 
 use super::AppState;
-use crate::agents;
 
 #[derive(Serialize)]
 pub struct CategoryInfo {
@@ -47,133 +46,121 @@ pub async fn root(State(state): State<AppState>, auth_user: AuthUser) -> impl In
 }
 
 pub async fn build_agent_summaries(state: &AppState) -> Vec<AgentSummary> {
-    let mut agent_summaries = Vec::new();
     let disabled_agents = state.disabled_agents.read().unwrap().clone();
+    let mut set = tokio::task::JoinSet::new();
 
-    // Test connectivity to each agent individually first
-    for agent in &state.config.agents {
+    for (index, agent) in state.config.agents.iter().cloned().enumerate() {
         let is_enabled = !disabled_agents.contains(&agent.name);
-        let mut total_size_kb = 0u64;
-        let mut category_infos = Vec::new();
-        let mut status_message = None;
-        let mut latency_ms = None;
+        let client = state.agent_client.clone();
+        let timeout_seconds = state.config.manager.agent_timeout_seconds;
 
-        let agent_status = if !is_enabled {
-            status_message = Some("Agent is manually disabled by user".to_string());
-            "Disabled".to_string()
-        } else {
-            let start_time = std::time::Instant::now();
-            match state.agent_client.get_categories(agent).await {
-                Ok(categories_response) => {
-                    latency_ms = Some(start_time.elapsed().as_millis());
-                    // Agent is reachable, now get detailed info for each category
-                    for category in &categories_response.items {
-                        match agents::item_info(
-                            &state.agent_client,
-                            vec![agent.clone()],
-                            vec![category.id.as_str()],
-                            &disabled_agents,
-                        )
-                        .await
-                        {
-                            Ok(item_response) => {
-                                if let Some((_, item_group)) = item_response
-                                    .agent_items
-                                    .iter()
-                                    .find(|(a, _)| a.name == agent.name)
-                                {
-                                    let size_kb = item_group.size_kb;
-                                    let item_count = item_group.items.len();
+        set.spawn(async move {
+            let mut total_size_kb = 0u64;
+            let mut category_infos = Vec::new();
+            let mut status_message = None;
+            let mut latency_ms = None;
 
-                                    if size_kb > 0
-                                        || item_count > 0
-                                        || item_group.stversions_size_kb > 0
-                                    {
-                                        category_infos.push(CategoryInfo {
-                                            id: category.id.clone(),
-                                            name: category.name.clone(),
-                                            size_kb,
-                                            item_count,
-                                            stversions_size_kb: item_group.stversions_size_kb,
-                                            stfolder_present: item_group.stfolder_present,
-                                            has_conflicts: item_group.has_conflicts,
-                                            is_syncing: item_group.is_syncing,
-                                        });
-                                    }
+            let agent_status = if !is_enabled {
+                status_message = Some("Agent is manually disabled by user".to_string());
+                "Disabled".to_string()
+            } else {
+                let start_time = std::time::Instant::now();
+                match client.get_categories(&agent).await {
+                    Ok(categories_response) => {
+                        latency_ms = Some(start_time.elapsed().as_millis());
+                        for category in categories_response.items {
+                            let size_kb = category.size_kb;
+                            let item_count = category.items.len();
 
-                                    total_size_kb += size_kb;
-                                }
+                            if size_kb > 0 || item_count > 0 || category.stversions_size_kb > 0 {
+                                category_infos.push(CategoryInfo {
+                                    id: category.id,
+                                    name: category.name,
+                                    size_kb,
+                                    item_count,
+                                    stversions_size_kb: category.stversions_size_kb,
+                                    stfolder_present: category.stfolder_present,
+                                    has_conflicts: category.has_conflicts,
+                                    is_syncing: category.is_syncing,
+                                });
                             }
-                            Err(_) => {
-                                // Skip this category if there's an error
-                                continue;
-                            }
+
+                            total_size_kb += size_kb;
+                        }
+
+                        // Sort categories by name
+                        category_infos.sort_by(|a, b| a.name.cmp(&b.name));
+
+                        if total_size_kb > 0 {
+                            "Active".to_string()
+                        } else {
+                            "Empty".to_string()
                         }
                     }
+                    Err(e) => {
+                        latency_ms = Some(start_time.elapsed().as_millis());
+                        // Agent is not reachable, determine the type of error
+                        let status = match e {
+                            crate::agent_client::AgentError::Timeout(_) => "Timeout".to_string(),
+                            crate::agent_client::AgentError::RequestFailed(_) => {
+                                "Unreachable".to_string()
+                            }
+                            crate::agent_client::AgentError::NotFound(_) => "Not Found".to_string(),
+                            crate::agent_client::AgentError::Conflict(_) => "Conflict".to_string(),
+                            crate::agent_client::AgentError::InvalidResponse(_) => {
+                                "Error".to_string()
+                            }
+                            crate::agent_client::AgentError::OperationFailed(_) => {
+                                "Error".to_string()
+                            }
+                        };
 
-                    // Sort categories by name
-                    category_infos.sort_by(|a, b| a.name.cmp(&b.name));
+                        status_message = Some(match e {
+                            crate::agent_client::AgentError::Timeout(_) => {
+                                format!("Request timed out after {} seconds", timeout_seconds)
+                            }
+                            crate::agent_client::AgentError::RequestFailed(_) => {
+                                "Could not connect to agent".to_string()
+                            }
+                            crate::agent_client::AgentError::NotFound(msg) => {
+                                format!("Not found: {}", msg)
+                            }
+                            crate::agent_client::AgentError::Conflict(msg) => {
+                                format!("Conflict: {}", msg)
+                            }
+                            crate::agent_client::AgentError::InvalidResponse(msg) => {
+                                format!("Invalid response: {}", msg)
+                            }
+                            crate::agent_client::AgentError::OperationFailed(msg) => {
+                                format!("Operation failed: {}", msg)
+                            }
+                        });
 
-                    if total_size_kb > 0 {
-                        "Active".to_string()
-                    } else {
-                        "Empty".to_string()
+                        status
                     }
                 }
-                Err(e) => {
-                    latency_ms = Some(start_time.elapsed().as_millis());
-                    // Agent is not reachable, determine the type of error
-                    let status = match e {
-                        crate::agent_client::AgentError::Timeout(_) => "Timeout".to_string(),
-                        crate::agent_client::AgentError::RequestFailed(_) => {
-                            "Unreachable".to_string()
-                        }
-                        crate::agent_client::AgentError::NotFound(_) => "Not Found".to_string(),
-                        crate::agent_client::AgentError::Conflict(_) => "Conflict".to_string(),
-                        crate::agent_client::AgentError::InvalidResponse(_) => "Error".to_string(),
-                        crate::agent_client::AgentError::OperationFailed(_) => "Error".to_string(),
-                    };
+            };
 
-                    status_message = Some(match e {
-                        crate::agent_client::AgentError::Timeout(_) => {
-                            format!(
-                                "Request timed out after {} seconds",
-                                state.config.manager.agent_timeout_seconds
-                            )
-                        }
-                        crate::agent_client::AgentError::RequestFailed(_) => {
-                            "Could not connect to agent".to_string()
-                        }
-                        crate::agent_client::AgentError::NotFound(msg) => {
-                            format!("Not found: {}", msg)
-                        }
-                        crate::agent_client::AgentError::Conflict(msg) => {
-                            format!("Conflict: {}", msg)
-                        }
-                        crate::agent_client::AgentError::InvalidResponse(msg) => {
-                            format!("Invalid response: {}", msg)
-                        }
-                        crate::agent_client::AgentError::OperationFailed(msg) => {
-                            format!("Operation failed: {}", msg)
-                        }
-                    });
+            let summary = AgentSummary {
+                name: agent.name.clone(),
+                url: agent.hostname.clone(),
+                total_size_kb,
+                categories: category_infos,
+                status: agent_status,
+                status_message,
+                enabled: is_enabled,
+                latency_ms,
+            };
 
-                    status
-                }
-            }
-        };
+            (index, summary)
+        });
+    }
 
-        let summary = AgentSummary {
-            name: agent.name.clone(),
-            url: agent.hostname.clone(),
-            total_size_kb,
-            categories: category_infos,
-            status: agent_status,
-            status_message,
-            enabled: is_enabled,
-            latency_ms,
-        };
-        agent_summaries.push(summary);
+    let mut agent_summaries = Vec::new();
+    while let Some(res) = set.join_next().await {
+        if let Ok((_idx, summary)) = res {
+            agent_summaries.push(summary);
+        }
     }
 
     // Sort by name

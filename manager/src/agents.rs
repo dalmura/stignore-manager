@@ -30,18 +30,39 @@ pub async fn list_categories(
     agents: Vec<Agent>,
     disabled_agents: &std::collections::HashSet<String>,
 ) -> CategoryListingResponse {
+    let mut set = tokio::task::JoinSet::new();
+
+    for (index, agent) in agents.into_iter().enumerate() {
+        let is_disabled = disabled_agents.contains(&agent.name);
+        let client = agent_client.clone();
+        set.spawn(async move {
+            if is_disabled {
+                (index, agent.name, None)
+            } else {
+                let resp = client.get_categories(&agent).await;
+                (index, agent.name, Some(resp))
+            }
+        });
+    }
+
+    let mut indexed_results = Vec::new();
+    while let Some(res) = set.join_next().await {
+        if let Ok(res_item) = res {
+            indexed_results.push(res_item);
+        }
+    }
+    indexed_results.sort_by_key(|(idx, _, _)| *idx);
+
     let mut agent_responses: Vec<AgentCategoryListingResponse> = vec![];
     let mut consolidated: HashMap<String, ItemGroup> = HashMap::new();
 
-    for agent in agents {
-        if disabled_agents.contains(&agent.name) {
-            let empty_response = AgentCategoryListingResponse { items: vec![] };
-            agent_responses.push(empty_response);
-            continue;
-        }
-
-        match agent_client.get_categories(&agent).await {
-            Ok(resp) => {
+    for (_idx, agent_name, maybe_resp) in indexed_results {
+        match maybe_resp {
+            None => {
+                let empty_response = AgentCategoryListingResponse { items: vec![] };
+                agent_responses.push(empty_response);
+            }
+            Some(Ok(resp)) => {
                 agent_responses.push(resp.clone());
 
                 for mut item in resp.items {
@@ -59,10 +80,10 @@ pub async fn list_categories(
                     };
                 }
             }
-            Err(e) => {
+            Some(Err(e)) => {
                 tracing::warn!(
                     "Failed to get categories from agent '{}': {}",
-                    agent.name,
+                    agent_name,
                     e
                 );
                 // Create an empty response for the failed agent to maintain consistency
@@ -94,32 +115,51 @@ pub async fn item_info(
     item_path: Vec<&str>,
     disabled_agents: &std::collections::HashSet<String>,
 ) -> Result<ItemInfoResponse, crate::agent_client::AgentError> {
-    let mut agent_responses: Vec<(Agent, ItemGroup)> = vec![];
-    let mut consolidated: ItemGroup = ItemGroup::empty();
-
     let owned_path: Vec<String> = item_path.iter().map(|v| v.to_string()).collect();
+    let mut set = tokio::task::JoinSet::new();
 
-    for agent in agents {
-        if disabled_agents.contains(&agent.name) {
-            let empty_item = ItemGroup::empty();
-            agent_responses.push((agent, empty_item.clone()));
-            consolidated = empty_item + consolidated;
-            continue;
-        }
-
+    for (index, agent) in agents.into_iter().enumerate() {
+        let is_disabled = disabled_agents.contains(&agent.name);
+        let client = agent_client.clone();
         let body = AgentItemInfoRequest {
             item_path: owned_path.clone(),
         };
+        set.spawn(async move {
+            if is_disabled {
+                (index, agent, None)
+            } else {
+                let resp = client.get_item_info(&agent, &body).await;
+                (index, agent, Some(resp))
+            }
+        });
+    }
 
-        match agent_client.get_item_info(&agent, &body).await {
-            Ok(resp) => {
+    let mut indexed_results = Vec::new();
+    while let Some(res) = set.join_next().await {
+        if let Ok(res_item) = res {
+            indexed_results.push(res_item);
+        }
+    }
+    indexed_results.sort_by_key(|(idx, _, _)| *idx);
+
+    let mut agent_responses: Vec<(Agent, ItemGroup)> = vec![];
+    let mut consolidated: ItemGroup = ItemGroup::empty();
+
+    for (_idx, agent, maybe_resp) in indexed_results {
+        match maybe_resp {
+            None => {
+                let empty_item = ItemGroup::empty();
+                agent_responses.push((agent, empty_item.clone()));
+                consolidated = empty_item + consolidated;
+            }
+            Some(Ok(resp)) => {
                 agent_responses.push((agent, resp.item.clone()));
                 let mut item_with_count = resp.item.clone();
                 let count = if item_with_count.id.is_empty() { 0 } else { 1 };
                 set_copy_count_recursive(&mut item_with_count, count);
                 consolidated = item_with_count + consolidated;
             }
-            Err(_) => {
+            Some(Err(_)) => {
                 // Handle error by creating an empty response (similar to 404 handling)
                 let empty_item = ItemGroup::empty();
                 agent_responses.push((agent, empty_item.clone()));
