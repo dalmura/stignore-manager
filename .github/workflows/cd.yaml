@@ -84,6 +84,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract metadata for manager
+        id: meta_manager
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/dalmura/stignore-manager
+          labels: |
+            org.opencontainers.image.title=stignore-manager
+            org.opencontainers.image.description=Centralized web dashboard & aggregator for managing .stignore rules
+            org.opencontainers.image.licenses=AGPL-3.0-only
+            org.opencontainers.image.source=https://github.com/dalmura/stignore-manager
+
+      - name: Extract metadata for agent
+        id: meta_agent
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/dalmura/stignore-agent
+          labels: |
+            org.opencontainers.image.title=stignore-agent
+            org.opencontainers.image.description=Lightweight storage node agent for .stignore management
+            org.opencontainers.image.licenses=AGPL-3.0-only
+            org.opencontainers.image.source=https://github.com/dalmura/stignore-manager
+
       - name: Build and push manager
         id: docker_build_manager
         uses: docker/build-push-action@v7
@@ -93,6 +115,8 @@ jobs:
           tags: |
             ghcr.io/dalmura/stignore-manager:build-${{ steps.versions.outputs.version }}-${{ matrix.arch }}
           target: manager
+          labels: ${{ steps.meta_manager.outputs.labels }}
+          annotations: ${{ steps.meta_manager.outputs.annotations }}
           cache-from: type=gha,scope=manager-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=manager-${{ matrix.arch }}
 
@@ -105,6 +129,8 @@ jobs:
           tags: |
             ghcr.io/dalmura/stignore-agent:build-${{ steps.versions.outputs.version }}-${{ matrix.arch }}
           target: agent
+          labels: ${{ steps.meta_agent.outputs.labels }}
+          annotations: ${{ steps.meta_agent.outputs.annotations }}
           cache-from: type=gha,scope=agent-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=agent-${{ matrix.arch }}
 
@@ -134,6 +160,14 @@ jobs:
       - name: Merge and push manager multi-arch image
         run: |
           docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.title=stignore-manager" \
+            --annotation "index:org.opencontainers.image.description=Centralized web dashboard & aggregator for managing .stignore rules" \
+            --annotation "index:org.opencontainers.image.source=https://github.com/dalmura/stignore-manager" \
+            --annotation "index:org.opencontainers.image.url=https://github.com/dalmura/stignore-manager" \
+            --annotation "index:org.opencontainers.image.licenses=AGPL-3.0-only" \
+            --annotation "index:org.opencontainers.image.version=v${{ steps.versions.outputs.version }}" \
+            --annotation "index:org.opencontainers.image.revision=${{ github.sha }}" \
+            --annotation "index:org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             -t ghcr.io/dalmura/stignore-manager:latest \
             -t ghcr.io/dalmura/stignore-manager:v${{ steps.versions.outputs.version }} \
             ghcr.io/dalmura/stignore-manager:build-${{ steps.versions.outputs.version }}-amd64 \
@@ -142,6 +176,14 @@ jobs:
       - name: Merge and push agent multi-arch image
         run: |
           docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.title=stignore-agent" \
+            --annotation "index:org.opencontainers.image.description=Lightweight storage node agent for .stignore management" \
+            --annotation "index:org.opencontainers.image.source=https://github.com/dalmura/stignore-manager" \
+            --annotation "index:org.opencontainers.image.url=https://github.com/dalmura/stignore-manager" \
+            --annotation "index:org.opencontainers.image.licenses=AGPL-3.0-only" \
+            --annotation "index:org.opencontainers.image.version=v${{ steps.versions.outputs.version }}" \
+            --annotation "index:org.opencontainers.image.revision=${{ github.sha }}" \
+            --annotation "index:org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             -t ghcr.io/dalmura/stignore-agent:latest \
             -t ghcr.io/dalmura/stignore-agent:v${{ steps.versions.outputs.version }} \
             ghcr.io/dalmura/stignore-agent:build-${{ steps.versions.outputs.version }}-amd64 \

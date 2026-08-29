@@ -20,6 +20,12 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 FROM gcr.io/distroless/cc-debian13 AS agent
 
+LABEL org.opencontainers.image.title="stignore-agent"
+LABEL org.opencontainers.image.description="Lightweight storage node agent for .stignore management"
+LABEL org.opencontainers.image.url="https://github.com/dalmura/stignore-manager"
+LABEL org.opencontainers.image.source="https://github.com/dalmura/stignore-manager"
+LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
+
 WORKDIR /app
 
 COPY --from=builder /app/stignore-agent /stignore-agent
@@ -29,6 +35,12 @@ CMD ["/app/config.toml"]
 
 
 FROM gcr.io/distroless/cc-debian13 AS manager
+
+LABEL org.opencontainers.image.title="stignore-manager"
+LABEL org.opencontainers.image.description="Centralized web dashboard & aggregator for managing .stignore rules"
+LABEL org.opencontainers.image.url="https://github.com/dalmura/stignore-manager"
+LABEL org.opencontainers.image.source="https://github.com/dalmura/stignore-manager"
+LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 
 WORKDIR /app
 

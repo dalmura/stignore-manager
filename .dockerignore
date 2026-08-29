@@ -4,7 +4,7 @@ target/
 *.log
 scripts/
 *.md
-**/CLAUDE.md
+**/AGENTS.md
 **/TODO.md
 agent/config*.toml
 manager/config*.toml
