@@ -1796,7 +1796,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "stignore-agent"
-version = "1.9.2"
+version = "1.10.0"
 dependencies = [
  "axum",
  "axum-test",
@@ -1810,7 +1810,7 @@ dependencies = [
 
 [[package]]
 name = "stignore-lib"
-version = "1.9.2"
+version = "1.10.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1820,7 +1820,7 @@ dependencies = [
 
 [[package]]
 name = "stignore-manager"
-version = "1.9.2"
+version = "1.10.0"
 dependencies = [
  "axum",
  "axum-template",
