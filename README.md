@@ -1,195 +1,160 @@
 # stignore manager
 
-A distributed Rust-based application for managing `.stignore` files across multiple locations through a web interface and HTTP API agents.
+A web dashboard for managing `.stignore` rules, tracking file redundancy, and coordinating storage across Syncthing nodes.
 
-## Architecture
+## Overview
 
-This is a Rust workspace containing three crates:
+Managing `.stignore` files across multiple Syncthing devices (servers, NAS, seedboxes) typically requires manual SSH sessions and text editing. `stignore-manager` connects to lightweight agents across your network to provide:
 
-### stignore-lib/
-**Purpose**: Shared library containing common types, configuration structures, and utilities
+- **Redundancy tracking**: Check copy counts against a target threshold across all nodes.
+- **Centralized ignore management**: Add, remove, or edit `.stignore` rules with one click.
+- **Conflict detection**: Spot sync conflicts and active transfers across your cluster.
+- **Media automation**: Coordinate file deletions with Radarr and Sonarr to prevent unwanted re-downloads.
 
-**Key Components**:
-- `ItemGroup` data structure for hierarchical filesystem representation
-- Configuration loading for both agent and manager
-- Shared API request/response types
-- Error handling and serialization
+## Features
 
-### stignore-agent/
-**Purpose**: HTTP API server that provides filesystem access and `.stignore` file management for a specific location
+- **Multi-node file browser**: View and manage synchronized files across all connected agents.
+- **Copy count monitoring**: Visual warnings for files that do not meet minimum redundancy targets.
+- **Ignore rule management**: Toggle sync exclusions per node or in bulk across multiple nodes.
+- **Built-in rule editor**: Directly view and edit `.stignore` files with pattern syntax help.
+- **Status filtering**: Quick filters for sync conflicts, active transfers, and copy counts.
+- **Radarr & Sonarr integration**: Auto-cleanup, season unmonitoring, and import list exclusion support.
+- **Reverse proxy auth & RBAC**: Header authentication with Admin (read/write) and Reader (read-only) roles.
+- **Keyboard navigation**: Vim-style keys (`h`/`j`/`k`/`l`), search (`/`), and shortcut help (`?`).
 
-**Key Features**:
-- JSON API for browsing filesystem hierarchically
-- Category-based organization of file locations
-- `.stignore` file creation and management
-- Filesystem name-based item identification
-- Configurable via TOML files
+## Quick Start
 
-**Main Endpoints**:
-- `GET /api/v1/categories` - List configured categories
-- `POST /api/v1/items` - Get item information by path
-- `POST /api/v1/ignore` - Add items to `.stignore` files
+Pre-built multi-arch images are available via GitHub Container Registry.
 
-### stignore-manager/
-**Purpose**: Web-based aggregation service that manages multiple agents and provides a unified interface
+### docker-compose.yml
 
-**Key Features**:
-- Web UI for viewing data from multiple agents
-- HTTP client for communicating with agent APIs
-- Data aggregation and consolidation across agents
-- HTMX-powered dynamic web interface
-- Tera templating system
+```yaml
+services:
+  stignore-manager:
+    image: ghcr.io/dalmura/stignore-manager:latest
+    container_name: stignore-manager
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./manager-config.toml:/app/config.toml:ro
 
-## Development Workflow
-
-### Workspace Commands
-```bash
-# Build everything
-cargo build
-
-# Build specific binary
-cargo build --bin stignore-agent
-cargo build --bin stignore-manager
-
-# Run tests for entire workspace
-cargo test
-
-# Linting and formatting
-cargo fmt
-cargo clippy --all-targets --all-features
+  stignore-agent:
+    image: ghcr.io/dalmura/stignore-agent:latest
+    container_name: stignore-agent
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./agent-config.toml:/app/config.toml:ro
+      - /path/to/data:/data:rw
 ```
-
-### Running the System
-```bash
-# Run agent with config
-cargo run --bin stignore-agent stignore-agent/config.toml
-
-# Run manager with config
-cargo run --bin stignore-manager stignore-manager/config.toml
-```
-
-### Binary Locations
-After building, binaries are located at:
-- `target/debug/stignore-agent`
-- `target/debug/stignore-manager`
 
 ## Configuration
 
-### Agent Configuration
-Located in `stignore-agent/config*.toml`:
+### Agent (`agent-config.toml`)
+
+Run on each machine hosting Syncthing directories.
+
 ```toml
 [agent]
 port = 3000
-name = "Agent Name"
-base_path = "/path/to/files"
-api_key = "550e8400-e29b-41d4-a716-446655440000"
+name = "NAS-01"
+base_path = "/data"
+api_key = "secret-agent-key"
 
 [[categories]]
 id = "movies"
 name = "Movies"
 relative_path = "movies/"
+
+[[categories]]
+id = "tv"
+name = "TV Shows"
+relative_path = "tv/"
 ```
 
-### Manager Configuration
-Located in `stignore-manager/config.toml`:
+### Manager (`manager-config.toml`)
+
+Hosts the web dashboard and connects to agents.
+
 ```toml
 [manager]
 port = 8000
 minimum_copies = 2
 agent_timeout_seconds = 5
 
-# Optional proxy header authentication & RBAC (Authentik, Authelia, Traefik, Nginx)
-[manager.auth]
-enabled = true                  # Defaults to false
-user_header = "X-Proxy-User"    # Configurable, defaults to "X-Proxy-User"
-role_header = "X-Proxy-Role"    # Configurable, defaults to "X-Proxy-Role"
-admin_role = "Admin"            # Configurable, defaults to "Admin"
-reader_role = "Reader"          # Configurable, defaults to "Reader"
-
-# Optional Radarr media integration (auto-cleanup when last copy is deleted)
-[integrations.radarr]
-enabled = true
-url = "http://localhost:7878"
-api_key = "550e8400-e29b-41d4-a716-446655440000"
-category_id = "movies"          # Matches category id defined on agents
-delete_files = false            # Agent already deletes filesystem files
-add_import_exclusion = false    # Prevent automated import lists from re-adding
-
-# Optional Sonarr media integration (auto-cleanup when last copy is deleted)
-[integrations.sonarr]
-enabled = true
-url = "http://localhost:8989"
-api_key = "550e8400-e29b-41d4-a716-446655440000"
-category_id = "tv"              # Matches category id defined on agents
-delete_files = false
-add_import_list_exclusion = false
+[[agents]]
+name = "NAS-01"
+hostname = "nas01.local:3000"
+api_key = "secret-agent-key"
 
 [[agents]]
-name = "Agent 1"
-hostname = "localhost:3001"
-api_key = "550e8400-e29b-41d4-a716-446655440000"
+name = "Seedbox"
+hostname = "seedbox.local:3000"
+api_key = "secret-agent-key"
+
+# Optional: Reverse proxy auth (Authentik, Authelia, Traefik, Nginx)
+[manager.auth]
+enabled = false
+user_header = "X-Proxy-User"
+role_header = "X-Proxy-Role"
+admin_role = "Admin"
+reader_role = "Reader"
+
+# Optional: Radarr integration
+[integrations.radarr]
+enabled = false
+url = "http://radarr.local:7878"
+api_key = "your-radarr-api-key"
+category_id = "movies"
+delete_files = false
+add_import_exclusion = true
+
+# Optional: Sonarr integration
+[integrations.sonarr]
+enabled = false
+url = "http://sonarr.local:8989"
+api_key = "your-sonarr-api-key"
+category_id = "tv"
+delete_files = false
+add_import_list_exclusion = true
 ```
 
-## Media Integrations (Radarr & Sonarr)
-When configured, `stignore-manager` can automatically clean up media entries from **Radarr** (movies) and **Sonarr** (TV series / seasons) when items are deleted across all agents:
-- **Zero-Copy Cleanup**: When deleting an item (either via single-item delete or bulk delete), if the remaining copies count across all agents reaches `0`, the manager will contact Radarr / Sonarr to remove the media record.
-- **Granular Season Support**: Deleting a season folder (e.g. `Season 01`) under a Sonarr series will delete the season's episode files via the Sonarr API and automatically unmonitor that season to prevent automatic re-downloads.
-- **Import Exclusions**: Configurable default to add deleted titles to the import exclusion list (preventing RSS / Trakt lists from re-adding them), with an interactive toggle in the confirmation modal.
-- **Environment Overrides**: Fully configurable via environment variables (e.g., `RADARR_URL`, `RADARR_API_KEY`, `RADARR_CATEGORY`, `RADARR_ENABLED`, `SONARR_URL`, `SONARR_API_KEY`, etc.).
+## Media Integrations
 
-## Security & Authentication
-- **Agent API Keys**: Uses `X-API-Key` header with matching UUID keys to secure manager-to-agent communication.
-- **Proxy Header Auth & RBAC (Optional)**: Secures `stignore-manager` when placed behind a reverse proxy (e.g., Authentik):
-  - Extracts username from `user_header` (e.g. `X-Proxy-User`) and assigned roles/groups from `role_header` (e.g. `X-Proxy-Role`).
-  - **`Admin`**: Full access to browse filesystem data, ignore/unignore items, delete items, and toggle agents.
-  - **`Reader`**: Read-only access to browse files and view agent statuses; write operations return `403 Forbidden`.
-  - When disabled (`enabled = false`), all requests implicitly run with `Admin` privileges for backward compatibility.
+When deleting items via the manager:
+- **Auto-cleanup**: Removes the title from Radarr/Sonarr when the last copy is deleted.
+- **Season support**: Deleting a season folder deletes episode files and unmonitors the season in Sonarr.
+- **Import exclusions**: Adds deleted items to exclusion lists to prevent RSS/Trakt lists from re-adding them.
 
-## Use Cases
-- Managing `.stignore` files across multiple project locations
-- Centralized view of filesystem structures from different sources
-- Bulk ignore file operations across distributed repositories
+Settings can also be set via environment variables (e.g. `RADARR_URL`, `RADARR_API_KEY`, `SONARR_URL`, `SONARR_API_KEY`).
 
-## Release Process
+## Security & RBAC
 
-Container builds and GitHub releases are automated via GitHub Actions on Git tag pushes.
+- **Agent auth**: Communication requires matching `X-API-Key` headers.
+- **Proxy header auth**:
+  - `Admin`: Full read and write access.
+  - `Reader`: Read-only access to browse files and view status.
 
-### 1. Update Workspace Version
-Update the single version in root `Cargo.toml`:
-```toml
-[workspace.package]
-version = "1.4.0"
-```
+## Keyboard Shortcuts
 
-### 2. Verify Linting & Tests (Updates `Cargo.lock`)
-Running cargo checks/tests will automatically sync `Cargo.lock` to the new version number:
-```bash
-cargo fmt --check
-cargo clippy --all-targets --all-features
-cargo test
-```
+| Shortcut | Action |
+| :--- | :--- |
+| `↓` or `j` | Move selection down |
+| `↑` or `k` | Move selection up |
+| `→` or `l` | Drill down into folder |
+| `←` or `h` | Return to parent folder |
+| `Enter` | Select item / view details |
+| `/` | Focus search |
+| `Esc` | Clear search / close modal |
+| `?` | Show help modal |
 
-### 3. Commit & Push to Main
-Ensure `Cargo.toml` and `Cargo.lock` are included in the commit:
-```bash
-git add -A
-git commit -m "chore: bump version to v1.4.0"
-git push origin main
-```
+## Development
 
-### 4. Create and Push a Git Tag
-Push a git tag matching the version (prefixed with `v`):
-```bash
-git tag v1.4.1
-git push --tags
-```
+For architecture details, local build commands, and workspace overview, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
-### 5. Automated CI/CD Pipeline
-Once the tag is pushed, GitHub Actions will automatically:
-1. Extract the workspace version from root `Cargo.toml`.
-2. Build multi-arch container images (`linux/amd64`, `linux/arm64`).
-3. Publish containers to GitHub Container Registry (GHCR):
-   - `ghcr.io/dalmura/stignore-manager:v1.4.0` and `latest`
-   - `ghcr.io/dalmura/stignore-agent:v1.4.0` and `latest`
-4. Build release binaries and create a GitHub Release with automated release notes.
+## License
+
+[GNU Affero General Public License v3.0](LICENSE)
 
